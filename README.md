@@ -7,14 +7,14 @@ If you run multiple Claude Code sessions simultaneously, this tells you at a gla
 ## What it looks like
 
 ```
-[WIP] Fix Model-B data pollution bug in core/data.py
-      risk-monitor  |  ctx 14%  |  23min
+[WIP] Fix data pipeline bug in core/fetcher.py
+      my-project  |  ctx 14%  |  23min
 
-[DONE] Deploy Model-A model to VPS
-       risk-monitor  |  ctx 61%  |  1h12m
+[DONE] Deploy model to production server
+       my-project  |  ctx 61%  |  1h12m
 
-[---]  my-quant-project  [feature/signal-v2]
-       my-quant-project   |  ctx 2%   |  0min
+[---]  backend  [feature/auth]
+       backend   |  ctx 2%   |  0min
 ```
 
 **Status badges:**
@@ -36,18 +36,29 @@ Four Claude Code hooks work together:
 
 The statusline script reads the task file for the current session and renders two lines: task status on line 1, directory + context usage + session duration on line 2.
 
-**Completion detection** — the `Stop` hook scans the assistant's last message for completion signals (e.g. "fixed", "all tests pass", "deployed", "完成"). Two or more signals trigger a `[DONE]` transition.
+### Summarization backends (auto-detected, no config required)
+
+The plugin picks the best available backend automatically:
+
+| Priority | Backend | Quality | Cost |
+|----------|---------|---------|------|
+| 1 | Claude API (`ANTHROPIC_API_KEY` set) | Best | ~$1/month |
+| 2 | Ollama (local model running) | Good | Free |
+| 3 | Keyword heuristics | Basic | Free |
+
+No setup needed — it works out of the box. Set `ANTHROPIC_API_KEY` in your environment for the best results.
 
 ## Install
 
 Requires [jq](https://jqlang.github.io/jq/):
 ```bash
 brew install jq  # macOS
+apt install jq   # Debian/Ubuntu
 ```
 
 Then:
 ```bash
-git clone https://github.com/lh-strategy/claude-tab-tracking.git
+git clone https://github.com/YOUR_USERNAME/claude-tab-tracking.git
 cd claude-tab-tracking
 chmod +x install.sh
 ./install.sh
@@ -63,7 +74,7 @@ Use the `/task` slash command to set a custom description for the current sessio
 /task Reviewing Q1 strategy report
 ```
 
-This writes a `MANUAL:` prefix that pins the description and stops the auto-update for this session.
+This writes a `MANUAL:` prefix that pins the description and stops auto-updates for this session. The badge shows `[SET]`.
 
 ## Files installed
 
@@ -71,7 +82,7 @@ This writes a `MANUAL:` prefix that pins the description and stops the auto-upda
 |------|---------|
 | `~/.claude/scripts/session_start.sh` | SessionStart hook |
 | `~/.claude/scripts/dynamic_task_update.sh` | Stop hook (bash wrapper) |
-| `~/.claude/scripts/dynamic_task_update.py` | Stop hook (transcript parser) |
+| `~/.claude/scripts/dynamic_task_update.py` | Stop hook (transcript parser + LLM summarization) |
 | `~/.claude/scripts/task_completed.sh` | TaskCompleted hook |
 | `~/.claude/scripts/session_statusline.sh` | Statusline renderer |
 | `~/.claude/scripts/session_end.sh` | SessionEnd cleanup |
@@ -80,10 +91,7 @@ This writes a `MANUAL:` prefix that pins the description and stops the auto-upda
 
 ## Uninstall
 
-Remove the scripts and revert `~/.claude/settings.json` entries manually, or run:
-
 ```bash
-# Remove scripts
 rm -f ~/.claude/scripts/session_start.sh \
       ~/.claude/scripts/dynamic_task_update.sh \
       ~/.claude/scripts/dynamic_task_update.py \
@@ -91,8 +99,6 @@ rm -f ~/.claude/scripts/session_start.sh \
       ~/.claude/scripts/session_statusline.sh \
       ~/.claude/scripts/session_end.sh \
       ~/.claude/commands/task.md
-
-# Remove session state
 rm -rf ~/.claude/session-tasks/
 ```
 
