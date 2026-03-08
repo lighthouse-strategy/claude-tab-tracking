@@ -58,7 +58,7 @@ apt install jq   # Debian/Ubuntu
 
 Then:
 ```bash
-git clone https://github.com/YOUR_USERNAME/claude-tab-tracking.git
+git clone https://github.com/lighthouse-strategy/claude-tab-tracking.git
 cd claude-tab-tracking
 chmod +x install.sh
 ./install.sh
