@@ -104,6 +104,10 @@ rm -rf ~/.claude/session-tasks/
 
 Then remove the `SessionStart`, `Stop`, `TaskCompleted`, `SessionEnd` entries from the `hooks` section of `~/.claude/settings.json`, and remove the `statusLine` key.
 
+## Author
+
+Built by [lh-strategy](https://github.com/lh-strategy)
+
 ## License
 
 MIT
