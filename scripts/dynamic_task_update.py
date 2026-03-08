@@ -1,16 +1,39 @@
 #!/usr/bin/env python3
 """
-Reads Claude Code transcript JSONL, calls local Ollama (qwen3.5:4b) for a
-semantic one-line task summary. Falls back to keyword heuristics if Ollama
-is unavailable or times out.
+Reads Claude Code transcript JSONL and generates a one-line task summary.
+
+Summarization priority (auto-detected, no config needed):
+  1. Claude API  — if ANTHROPIC_API_KEY is set
+  2. Ollama      — if a local server is running on port 11434
+  3. Keywords    — always available, zero dependencies
+
 Updates task file with WIP:description or DONE:description.
 """
 import json
 import os
 import re
 import sys
-import urllib.error
 import urllib.request
+
+
+# ---------------------------------------------------------------------------
+# Shared prompt templates
+# ---------------------------------------------------------------------------
+
+SYSTEM_PROMPT = (
+    'You are a concise task tracker. '
+    'Summarize the current task in one sentence (under 25 characters if Chinese, '
+    'under 40 if English). Output only the task description — no explanations, '
+    'no quotes, no extra punctuation. '
+    'If the task is fully completed, prefix with "[完成] ".'
+)
+
+USER_PROMPT_TEMPLATE = """根据以下对话片段，总结当前正在做的具体任务。
+
+对话记录：
+{conversation}
+
+任务描述："""
 
 
 # ---------------------------------------------------------------------------
@@ -18,7 +41,6 @@ import urllib.request
 # ---------------------------------------------------------------------------
 
 def extract_text(content):
-    """Normalize content field — can be str or list of blocks."""
     if isinstance(content, str):
         return content.strip()
     if isinstance(content, list):
@@ -47,21 +69,15 @@ def parse_transcript(path):
                     continue
 
                 role = content = None
-
-                # Format A: {"type": "user"|"assistant", "message": {...}}
                 if obj.get('type') in ('user', 'assistant'):
                     role = obj['type']
-                    msg = obj.get('message', obj)
-                    content = extract_text(msg.get('content', ''))
-                # Format B: {"role": "user"|"assistant", "content": ...}
+                    content = extract_text(obj.get('message', obj).get('content', ''))
                 elif obj.get('role') in ('user', 'assistant'):
                     role = obj['role']
                     content = extract_text(obj.get('content', ''))
 
                 if not role or not content:
                     continue
-
-                # Skip slash commands and very short user messages
                 if role == 'user' and (content.startswith('/') or len(content) <= 3):
                     continue
 
@@ -71,62 +87,118 @@ def parse_transcript(path):
     return messages
 
 
-# ---------------------------------------------------------------------------
-# Ollama LLM summarization
-# ---------------------------------------------------------------------------
-
-OLLAMA_URL = 'http://localhost:11434/api/chat'
-OLLAMA_MODEL = 'qwen3.5:4b'
-OLLAMA_TIMEOUT = 10  # seconds
-
-SYSTEM_PROMPT = (
-    'You are a concise task tracker. '
-    'Summarize the current task in one sentence (under 25 characters if Chinese, '
-    'under 40 if English). Output only the task description — no explanations, '
-    'no quotes, no punctuation beyond what is natural. '
-    'If the task is fully completed, prefix with "[完成] ".'
-)
-
-USER_PROMPT_TEMPLATE = """根据以下对话片段，总结当前正在做的具体任务。
-
-对话记录：
-{conversation}
-
-任务描述："""
-
-
 def build_conversation_snippet(messages, max_exchanges=4):
-    """Take the last N exchanges and format as a compact string."""
     recent = messages[-(max_exchanges * 2):]
     lines = []
     for m in recent:
-        role_label = '用户' if m['role'] == 'user' else 'Claude'
-        text = m['content'][:300].replace('\n', ' ')
-        lines.append(f"{role_label}: {text}")
+        label = '用户' if m['role'] == 'user' else 'Claude'
+        lines.append(f"{label}: {m['content'][:300].replace(chr(10), ' ')}")
     return '\n'.join(lines)
 
 
-def ollama_summarize(messages):
-    """
-    Call Ollama chat API (think:false) for a semantic one-line task summary.
-    Returns (task_description, is_done) or raises on failure.
-    """
+# ---------------------------------------------------------------------------
+# Response parsing (shared by all LLM backends)
+# ---------------------------------------------------------------------------
+
+def parse_llm_response(response):
+    """Extract (task_description, is_done) from LLM output."""
+    response = response.strip()
+    is_done = bool(re.match(
+        r'^(\[完成\]|完成\s|完成：|completed[: ]|\[done\])',
+        response, re.IGNORECASE
+    ))
+    task = re.sub(
+        r'^(\[完成\]\s*|完成\s+|完成：\s*|\[done\]\s*|completed:\s*)',
+        '', response, flags=re.IGNORECASE
+    ).strip()
+    if len(task) > 60:
+        task = task[:57] + '...'
+    return task, is_done
+
+
+# ---------------------------------------------------------------------------
+# Backend 1: Claude API
+# ---------------------------------------------------------------------------
+
+CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages'
+CLAUDE_MODEL = 'claude-haiku-4-5-20251001'
+CLAUDE_TIMEOUT = 10
+
+
+def claude_summarize(messages):
+    """Call Claude Haiku via Anthropic API. Raises if ANTHROPIC_API_KEY not set."""
+    api_key = os.environ.get('ANTHROPIC_API_KEY', '').strip()
+    if not api_key:
+        raise EnvironmentError('ANTHROPIC_API_KEY not set')
+
     conversation = build_conversation_snippet(messages)
     user_content = USER_PROMPT_TEMPLATE.format(conversation=conversation)
 
-    # think:false at top level disables qwen3.5 extended thinking mode
     payload = json.dumps({
-        'model': OLLAMA_MODEL,
+        'model': CLAUDE_MODEL,
+        'max_tokens': 80,
+        'system': SYSTEM_PROMPT,
+        'messages': [{'role': 'user', 'content': user_content}],
+    }).encode()
+
+    req = urllib.request.Request(
+        CLAUDE_API_URL,
+        data=payload,
+        headers={
+            'Content-Type': 'application/json',
+            'x-api-key': api_key,
+            'anthropic-version': '2023-06-01',
+        },
+        method='POST',
+    )
+    with urllib.request.urlopen(req, timeout=CLAUDE_TIMEOUT) as resp:
+        result = json.loads(resp.read())
+
+    text = result['content'][0]['text']
+    return parse_llm_response(text)
+
+
+# ---------------------------------------------------------------------------
+# Backend 2: Ollama
+# ---------------------------------------------------------------------------
+
+OLLAMA_URL = 'http://localhost:11434/api/chat'
+OLLAMA_TIMEOUT = 10
+
+
+def _get_ollama_model():
+    """Pick the best available small model from the local Ollama server."""
+    req = urllib.request.Request('http://localhost:11434/api/tags')
+    with urllib.request.urlopen(req, timeout=2) as resp:
+        data = json.loads(resp.read())
+    models = [m['name'] for m in data.get('models', [])]
+    if not models:
+        raise RuntimeError('no Ollama models available')
+    preferred = [
+        'qwen3.5:4b', 'qwen2.5:4b', 'qwen3:4b',
+        'llama3.2:3b', 'llama3.2:latest', 'llama3:latest',
+    ]
+    for p in preferred:
+        if p in models:
+            return p
+    return models[0]  # fall back to whatever is installed
+
+
+def ollama_summarize(messages):
+    """Call local Ollama. Raises if Ollama is not running or has no models."""
+    model = _get_ollama_model()
+    conversation = build_conversation_snippet(messages)
+    user_content = USER_PROMPT_TEMPLATE.format(conversation=conversation)
+
+    payload = json.dumps({
+        'model': model,
         'stream': False,
-        'think': False,
+        'think': False,          # disables extended thinking on qwen3.x
         'messages': [
             {'role': 'system', 'content': SYSTEM_PROMPT},
             {'role': 'user',   'content': user_content},
         ],
-        'options': {
-            'temperature': 0.1,
-            'num_predict': 80,
-        },
+        'options': {'temperature': 0.1, 'num_predict': 80},
     }).encode()
 
     req = urllib.request.Request(
@@ -138,22 +210,14 @@ def ollama_summarize(messages):
     with urllib.request.urlopen(req, timeout=OLLAMA_TIMEOUT) as resp:
         result = json.loads(resp.read())
 
-    response = result.get('message', {}).get('content', '').strip()
-    if not response:
+    text = result.get('message', {}).get('content', '').strip()
+    if not text:
         raise ValueError('empty response from Ollama')
-
-    # Accept both bracketed and bare completion prefixes
-    is_done = bool(re.match(r'^(\[完成\]|完成\s|完成：|completed[: ]|\[done\])', response, re.IGNORECASE))
-    task = re.sub(r'^(\[完成\]\s*|完成\s+|完成：\s*|\[done\]\s*|completed:\s*)', '', response, flags=re.IGNORECASE).strip()
-
-    if len(task) > 60:
-        task = task[:57] + '...'
-
-    return task, is_done
+    return parse_llm_response(text)
 
 
 # ---------------------------------------------------------------------------
-# Keyword fallback
+# Backend 3: Keyword fallback (zero dependencies)
 # ---------------------------------------------------------------------------
 
 COMPLETION_KEYWORDS = [
@@ -165,55 +229,47 @@ COMPLETION_KEYWORDS = [
 
 
 def keyword_fallback(messages):
-    """Original heuristic: latest user message + keyword completion detection."""
-    user_messages = [m['content'] for m in messages if m['role'] == 'user']
-    assistant_messages = [m['content'] for m in messages if m['role'] == 'assistant']
-
-    if not user_messages:
+    user_msgs = [m['content'] for m in messages if m['role'] == 'user']
+    asst_msgs = [m['content'] for m in messages if m['role'] == 'assistant']
+    if not user_msgs:
         return None, False
-
-    latest = user_messages[-1]
-    task_desc = re.sub(r'\s+', ' ', latest).strip()[:70].rstrip()
-
-    last_assistant = assistant_messages[-1].lower() if assistant_messages else ''
-    matches = sum(1 for kw in COMPLETION_KEYWORDS if kw in last_assistant)
-    is_done = matches >= 2
-
+    task_desc = re.sub(r'\s+', ' ', user_msgs[-1]).strip()[:70]
+    last_asst = asst_msgs[-1].lower() if asst_msgs else ''
+    is_done = sum(1 for kw in COMPLETION_KEYWORDS if kw in last_asst) >= 2
     return task_desc, is_done
 
 
 # ---------------------------------------------------------------------------
-# Main
+# Main — try each backend in priority order
 # ---------------------------------------------------------------------------
 
 def main():
     if len(sys.argv) != 3:
         sys.exit(0)
 
-    transcript_path = sys.argv[1]
-    task_file_path = sys.argv[2]
-
+    transcript_path, task_file_path = sys.argv[1], sys.argv[2]
     messages = parse_transcript(transcript_path)
     if not messages:
         sys.exit(0)
 
-    # Try LLM summarization first, fall back to heuristics on any failure
-    try:
-        task_desc, is_done = ollama_summarize(messages)
-    except Exception:
-        task_desc, is_done = keyword_fallback(messages)
+    task_desc = is_done = None
+    for backend in (claude_summarize, ollama_summarize, keyword_fallback):
+        try:
+            task_desc, is_done = backend(messages)
+            if task_desc:
+                break
+        except Exception:
+            continue
 
     if not task_desc:
         sys.exit(0)
 
     prefix = 'DONE' if is_done else 'WIP'
-    new_content = f"{prefix}:{task_desc}\n"
-
     dirpart = os.path.dirname(task_file_path)
     if dirpart:
         os.makedirs(dirpart, exist_ok=True)
     with open(task_file_path, 'w', encoding='utf-8') as f:
-        f.write(new_content)
+        f.write(f"{prefix}:{task_desc}\n")
 
 
 if __name__ == '__main__':
