@@ -22,15 +22,17 @@ import urllib.request
 
 SYSTEM_PROMPT = (
     'You are a concise task tracker. '
-    'Summarize the current task in one sentence (under 25 characters if Chinese, '
-    'under 40 if English). Output only the task description — no explanations, '
-    'no quotes, no extra punctuation. '
-    'If the task is fully completed, prefix with "[完成] ".'
+    'Based on the full conversation arc — including how the task evolved across multiple exchanges — '
+    'summarize what is currently being worked on in one sentence '
+    '(under 25 characters if Chinese, under 40 if English). '
+    'Focus on the overall goal, not just the latest message. '
+    'Output only the task description — no explanations, no quotes, no extra punctuation. '
+    'Only prefix with "[完成] " if there is clear evidence across multiple turns that the task is fully done.'
 )
 
-USER_PROMPT_TEMPLATE = """根据以下对话片段，总结当前正在做的具体任务。
+USER_PROMPT_TEMPLATE = """根据以下完整对话记录，综合判断当前正在进行的任务。请关注整体目标和对话走向，而不只是最后一条消息。
 
-对话记录：
+对话记录（含开头和最近内容）：
 {conversation}
 
 任务描述："""
@@ -87,11 +89,31 @@ def parse_transcript(path):
     return messages
 
 
-def build_conversation_snippet(messages, max_exchanges=4):
-    recent = messages[-(max_exchanges * 2):]
+def build_conversation_snippet(messages, max_exchanges=10):
+    """
+    Build a snippet that includes:
+    - The first exchange (captures original intent)
+    - The most recent exchanges (captures current state)
+    This gives the LLM context on both where the task started and where it is now.
+    """
     lines = []
-    for m in recent:
+    # Always include the first exchange to anchor the original task intent
+    first_two = messages[:2]
+    recent = messages[-(max_exchanges * 2):]
+    # Merge, dedup by position
+    combined_indices = set()
+    combined = []
+    for m in first_two + recent:
+        idx = id(m)
+        if idx not in combined_indices:
+            combined_indices.add(idx)
+            combined.append(m)
+    # If first exchange is already in recent window, no separator needed
+    show_separator = len(messages) > max_exchanges * 2 + 2
+    for i, m in enumerate(combined):
         label = '用户' if m['role'] == 'user' else 'Claude'
+        if show_separator and i == len(first_two):
+            lines.append('...')
         lines.append(f"{label}: {m['content'][:300].replace(chr(10), ' ')}")
     return '\n'.join(lines)
 
@@ -233,9 +255,13 @@ def keyword_fallback(messages):
     asst_msgs = [m['content'] for m in messages if m['role'] == 'assistant']
     if not user_msgs:
         return None, False
-    task_desc = re.sub(r'\s+', ' ', user_msgs[-1]).strip()[:70]
-    last_asst = asst_msgs[-1].lower() if asst_msgs else ''
-    is_done = sum(1 for kw in COMPLETION_KEYWORDS if kw in last_asst) >= 2
+    # Use first user message as task anchor (original intent), truncated
+    task_desc = re.sub(r'\s+', ' ', user_msgs[0]).strip()[:70]
+    # Check the last 3 assistant messages for completion signals
+    recent_asst = [m.lower() for m in asst_msgs[-3:]]
+    kw_hits = sum(1 for msg in recent_asst for kw in COMPLETION_KEYWORDS if kw in msg)
+    # Require 3+ keyword hits across recent messages to reduce false positives
+    is_done = kw_hits >= 3
     return task_desc, is_done
 
 
