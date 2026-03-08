@@ -19,10 +19,10 @@ fi
 TASKS_DIR="$HOME/.claude/session-tasks"
 TASK_FILE="$TASKS_DIR/${SESSION_ID}.txt"
 
-# Don't overwrite DONE status
+# Don't overwrite manually-pinned tasks
 if [ -f "$TASK_FILE" ]; then
   CURRENT=$(cat "$TASK_FILE")
-  if [[ "$CURRENT" == DONE:* ]] || [[ "$CURRENT" == MANUAL:* ]]; then
+  if [[ "$CURRENT" == MANUAL:* ]]; then
     exit 0
   fi
 fi
