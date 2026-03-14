@@ -3,8 +3,19 @@
 
 INPUT=$(cat)
 SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // empty')
-PCT=$(echo "$INPUT" | jq -r '.context_window.used_percentage // 0' | cut -d. -f1)
-PCT=${PCT:-0}
+USED_TOKENS=$(echo "$INPUT" | jq -r '
+  ((.context_window.current_usage.input_tokens // 0) +
+   (.context_window.current_usage.cache_creation_input_tokens // 0) +
+   (.context_window.current_usage.cache_read_input_tokens // 0))
+')
+USED_TOKENS=${USED_TOKENS:-0}
+WINDOW_SIZE=$(echo "$INPUT" | jq -r '.context_window.context_window_size // 200000')
+WINDOW_SIZE=${WINDOW_SIZE:-200000}
+if [ "$WINDOW_SIZE" -gt 0 ] 2>/dev/null; then
+  PCT=$(( USED_TOKENS * 100 / WINDOW_SIZE ))
+else
+  PCT=0
+fi
 DURATION_MS=$(echo "$INPUT" | jq -r '.cost.total_duration_ms // 0' | cut -d. -f1)
 DURATION_MS=${DURATION_MS:-0}
 DIR=$(echo "$INPUT" | jq -r '.workspace.current_dir // .cwd // ""')

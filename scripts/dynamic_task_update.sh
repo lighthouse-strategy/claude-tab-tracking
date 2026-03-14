@@ -27,6 +27,14 @@ if [ -f "$TASK_FILE" ]; then
   fi
 fi
 
+# Reset DONE tasks so Python script generates fresh description
+if [ -f "$TASK_FILE" ]; then
+  CURRENT2=$(cat "$TASK_FILE")
+  if [[ "$CURRENT2" == DONE:* ]]; then
+    echo "WIP:" > "$TASK_FILE"
+  fi
+fi
+
 mkdir -p "$TASKS_DIR"
 
 # Call the Python helper script (use system python3, not uv shim)
