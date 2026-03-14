@@ -42,7 +42,8 @@ CYAN='\033[36m'
 TASK_FILE="$HOME/.claude/session-tasks/${SESSION_ID}.txt"
 
 if [ -f "$TASK_FILE" ]; then
-  RAW=$(cat "$TASK_FILE" | tr -d '\n')
+  RAW=$(head -1 "$TASK_FILE" | tr -d '\n')
+  PREV_LINE=$(sed -n '2p' "$TASK_FILE" 2>/dev/null)
   if [[ "$RAW" == DONE:* ]]; then
     BADGE="${GREEN}[DONE]${RESET}"
     TASK="${RAW#DONE:}"
@@ -64,11 +65,20 @@ if [ -f "$TASK_FILE" ]; then
     TASK="${TASK:0:57}..."
   fi
   echo -e "${BADGE} ${TASK}"
+
+  # --- Line 2 (optional): Previous task ---
+  if [[ -n "$PREV_LINE" && "$PREV_LINE" == PREV:* ]]; then
+    PREV_TASK="${PREV_LINE#PREV:}"
+    if [ ${#PREV_TASK} -gt 60 ]; then
+      PREV_TASK="${PREV_TASK:0:57}..."
+    fi
+    echo -e "${DIM}${GREEN}[DONE]${RESET} ${DIM}${PREV_TASK}${RESET}"
+  fi
 else
   echo -e "${DIM}[---] starting...${RESET}"
 fi
 
-# --- Line 2: Directory | context% | duration ---
+# --- Line 3: Directory | context% | duration ---
 # Color context % based on usage
 if [ "$PCT" -lt 50 ]; then
   PCT_COLOR="$GREEN"
