@@ -9,7 +9,14 @@ if [ -z "$CWD" ]; then
   exit 0
 fi
 
-CWD_HASH=$(echo "$CWD" | md5 | cut -c1-8)
+cwd_hash() {
+  if command -v md5 &>/dev/null; then
+    echo "$1" | md5 | cut -c1-8
+  else
+    echo "$1" | md5sum | cut -c1-8
+  fi
+}
+CWD_HASH=$(cwd_hash "$CWD")
 LOOKUP="$HOME/.claude/session-tasks/current_${CWD_HASH}.txt"
 
 # Only remove if this session owns the lookup (not a different session)

@@ -7,7 +7,7 @@ When this command is invoked:
    - If no text was provided, ask: "What task are you working on in this session?"
 
 2. Find the current session's task file using the cwd-indexed lookup:
-   - Run: `CWD_HASH=$(echo "$PWD" | md5 | cut -c1-8) && cat ~/.claude/session-tasks/current_${CWD_HASH}.txt 2>/dev/null`
+   - Run: `CWD_HASH=$(echo "$PWD" | (command -v md5 &>/dev/null && md5 || md5sum) | cut -c1-8) && cat ~/.claude/session-tasks/current_${CWD_HASH}.txt 2>/dev/null`
    - This gives you the SESSION_ID for the current session.
    - If no session ID is found, say "Session task file not found — the SessionStart hook may not have run yet. Try restarting Claude Code."
 

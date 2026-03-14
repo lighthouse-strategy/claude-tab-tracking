@@ -9,8 +9,15 @@ if [ -z "$SESSION_ID" ] || [ -z "$CWD" ]; then
   exit 0
 fi
 
-# Hash the cwd to a short 8-char key (works on macOS)
-CWD_HASH=$(echo "$CWD" | md5 | cut -c1-8)
+# Hash the cwd to a short 8-char key (macOS + Linux)
+cwd_hash() {
+  if command -v md5 &>/dev/null; then
+    echo "$1" | md5 | cut -c1-8
+  else
+    echo "$1" | md5sum | cut -c1-8
+  fi
+}
+CWD_HASH=$(cwd_hash "$CWD")
 TASKS_DIR="$HOME/.claude/session-tasks"
 mkdir -p "$TASKS_DIR"
 
