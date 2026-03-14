@@ -56,11 +56,20 @@ new_hooks = {
 }
 
 for event, config in new_hooks.items():
-    if event not in hooks:
-        hooks[event] = config
+    existing = hooks.get(event, [])
+    existing_cmds = set()
+    for rule in existing:
+        for h in rule.get("hooks", []):
+            existing_cmds.add(h.get("command", ""))
+    for rule in config:
+        new_cmds = [h for h in rule["hooks"] if h["command"] not in existing_cmds]
+        if new_cmds:
+            new_rule = dict(rule)
+            new_rule["hooks"] = new_cmds
+            existing.append(new_rule)
+    hooks[event] = existing
 
-if "statusLine" not in d:
-    d["statusLine"] = {"type": "command", "command": "~/.claude/scripts/session_statusline.sh"}
+d["statusLine"] = {"type": "command", "command": "~/.claude/scripts/session_statusline.sh"}
 
 with open(path, "w") as f:
     json.dump(d, f, indent=2)
