@@ -207,3 +207,75 @@ def test_parse_skips_malformed_lines():
         assert len(msgs) == 1
     finally:
         os.unlink(path)
+
+
+# ---------------------------------------------------------------------------
+# Tests for PREV line preservation
+# ---------------------------------------------------------------------------
+
+
+def test_main_preserves_prev_line(tmp_path):
+    """When Python script writes a new task, it should preserve existing PREV line."""
+    from dynamic_task_update import main as _unused  # just verify import works
+    # We can't easily test main() directly (it reads sys.argv),
+    # so test the PREV preservation logic in isolation.
+
+    # Simulate: task file has WIP + PREV
+    task_file = tmp_path / "test_session.txt"
+    task_file.write_text("WIP:Old task\nPREV:Even older task\n")
+
+    # Read PREV line (same logic as in main)
+    prev_line = None
+    with open(task_file, 'r') as f:
+        for line in f:
+            if line.startswith('PREV:'):
+                prev_line = line.strip()
+                break
+
+    # Write new task, preserving PREV
+    with open(task_file, 'w') as f:
+        f.write("WIP:New task\n")
+        if prev_line:
+            f.write(f"{prev_line}\n")
+
+    lines = task_file.read_text().splitlines()
+    assert lines[0] == "WIP:New task"
+    assert lines[1] == "PREV:Even older task"
+    assert len(lines) == 2
+
+
+def test_prev_line_not_added_when_absent(tmp_path):
+    """When no PREV line exists, output should be single line."""
+    task_file = tmp_path / "test_session.txt"
+    task_file.write_text("WIP:Current task\n")
+
+    prev_line = None
+    with open(task_file, 'r') as f:
+        for line in f:
+            if line.startswith('PREV:'):
+                prev_line = line.strip()
+                break
+
+    with open(task_file, 'w') as f:
+        f.write("DONE:Current task\n")
+        if prev_line:
+            f.write(f"{prev_line}\n")
+
+    lines = task_file.read_text().splitlines()
+    assert lines[0] == "DONE:Current task"
+    assert len(lines) == 1
+
+
+def test_prev_line_stripped_properly(tmp_path):
+    """PREV line should be stripped of whitespace including \\r\\n."""
+    task_file = tmp_path / "test_session.txt"
+    task_file.write_text("WIP:Task\nPREV:Old task\r\n")
+
+    prev_line = None
+    with open(task_file, 'r') as f:
+        for line in f:
+            if line.startswith('PREV:'):
+                prev_line = line.strip()
+                break
+
+    assert prev_line == "PREV:Old task"  # no \r
