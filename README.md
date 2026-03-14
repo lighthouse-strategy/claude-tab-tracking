@@ -2,21 +2,20 @@
 
 [中文文档](README_CN.md)
 
-Live task tracking for [Claude Code](https://code.claude.com). Shows what each session is working on — updated automatically as the conversation progresses.
+> Know what every Claude Code session is doing — at a glance.
+
+<!-- ![demo](assets/demo.gif) -->
+
+Live task tracking for [Claude Code](https://docs.anthropic.com/en/docs/claude-code). Shows what each session is working on — updated automatically as the conversation progresses.
 
 If you run multiple Claude Code sessions simultaneously, this tells you at a glance what each one is doing.
 
 ## What it looks like
 
 ```
-[WIP] Fix data pipeline bug in core/fetcher.py
-      my-project  |  ctx 14%  |  23min
-
+[WIP]  Fix authentication bug in api/routes.py
 [DONE] Deploy model to production server
-       my-project  |  ctx 61%  |  1h12m
-
-[---]  backend  [feature/auth]
-       backend   |  ctx 2%   |  0min
+       my-project  |  ctx 14%  |  23min
 ```
 
 **Status badges:**
@@ -24,6 +23,8 @@ If you run multiple Claude Code sessions simultaneously, this tells you at a gla
 - `[WIP]` — task in progress, auto-updated each turn
 - `[DONE]` — task completed (detected automatically)
 - `[SET]` — task manually set with `/task`
+
+When you finish one task and start another, the previous task stays visible as a dimmed `[DONE]` line beneath the current task.
 
 ## How it works
 
@@ -36,7 +37,7 @@ Four Claude Code hooks work together:
 | `TaskCompleted` | Marks task as `[DONE]` when Claude explicitly completes a task |
 | `SessionEnd` | Cleans up session state files |
 
-The statusline script reads the task file for the current session and renders two lines: task status on line 1, directory + context usage + session duration on line 2.
+The statusline script reads the task file for the current session and renders the display.
 
 ### Summarization backends (auto-detected, no config required)
 
@@ -61,9 +62,7 @@ apt install jq   # Debian/Ubuntu
 Then:
 ```bash
 git clone https://github.com/lighthouse-strategy/claude-tab-tracking.git
-cd claude-tab-tracking
-chmod +x install.sh
-./install.sh
+cd claude-tab-tracking && ./install.sh
 ```
 
 Open a new Claude Code session — the statusline appears immediately.
