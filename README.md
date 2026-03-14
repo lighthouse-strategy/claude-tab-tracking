@@ -1,5 +1,7 @@
 # claude-tab-tracking
 
+[中文文档](README_CN.md)
+
 Live task tracking for [Claude Code](https://code.claude.com). Shows what each session is working on — updated automatically as the conversation progresses.
 
 If you run multiple Claude Code sessions simultaneously, this tells you at a glance what each one is doing.
