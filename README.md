@@ -4,7 +4,7 @@
 
 > Know what every Claude Code session is doing — at a glance.
 
-<!-- ![demo](assets/demo.gif) -->
+![demo](assets/demo.gif)
 
 Live task tracking for [Claude Code](https://docs.anthropic.com/en/docs/claude-code). Shows what each session is working on — updated automatically as the conversation progresses.
 
