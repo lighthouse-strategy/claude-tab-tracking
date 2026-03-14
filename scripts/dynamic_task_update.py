@@ -317,11 +317,23 @@ def main():
         sys.exit(0)
 
     prefix = 'DONE' if is_done else 'WIP'
+
+    # Read existing PREV line before overwriting
+    prev_line = None
+    if os.path.exists(task_file_path):
+        with open(task_file_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                if line.startswith('PREV:'):
+                    prev_line = line.strip()
+                    break
+
     dirpart = os.path.dirname(task_file_path)
     if dirpart:
         os.makedirs(dirpart, exist_ok=True)
     with open(task_file_path, 'w', encoding='utf-8') as f:
         f.write(f"{prefix}:{task_desc}\n")
+        if prev_line:
+            f.write(f"{prev_line}\n")
 
 
 if __name__ == '__main__':

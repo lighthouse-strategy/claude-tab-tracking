@@ -21,7 +21,7 @@ TASK_FILE="$TASKS_DIR/${SESSION_ID}.txt"
 
 # Don't overwrite manually-pinned tasks
 if [ -f "$TASK_FILE" ]; then
-  CURRENT=$(cat "$TASK_FILE")
+  CURRENT=$(head -1 "$TASK_FILE")
   if [[ "$CURRENT" == MANUAL:* ]]; then
     exit 0
   fi
@@ -29,9 +29,11 @@ fi
 
 # Reset DONE tasks so Python script generates fresh description
 if [ -f "$TASK_FILE" ]; then
-  CURRENT2=$(cat "$TASK_FILE")
+  CURRENT2=$(head -1 "$TASK_FILE")
   if [[ "$CURRENT2" == DONE:* ]]; then
+    DESC="${CURRENT2#DONE:}"
     echo "WIP:" > "$TASK_FILE"
+    echo "PREV:${DESC}" >> "$TASK_FILE"
   fi
 fi
 
