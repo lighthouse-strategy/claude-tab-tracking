@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>claude-tab-tracking Feature Slides</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;600;700;900&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #e8e8e8;
+    color: #1a1a1a;
+    font-family: 'Inter', -apple-system, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 40px;
+    padding: 40px 20px;
+  }
+
+  .slide {
+    width: 1080px;
+    height: 1080px;
+    border-radius: 24px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 80px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* Slide 1: Hero */
+  .slide-hero {
+    background: linear-gradient(145deg, #f8f8ff 0%, #eef0ff 100%);
+  }
+
+  .slide-hero h1 {
+    font-size: 52px;
+    font-weight: 900;
+    text-align: center;
+    line-height: 1.3;
+    margin-bottom: 32px;
+    color: #1a1a2e;
+  }
+
+  .slide-hero h1 .highlight {
+    background: linear-gradient(135deg, #6c4cef, #00b894);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .slide-hero .tagline {
+    font-size: 26px;
+    color: #666;
+    text-align: center;
+    line-height: 1.6;
+    max-width: 700px;
+  }
+
+  .slide-hero .terminal-preview {
+    margin-top: 48px;
+    background: #1e1e2e;
+    border-radius: 16px;
+    padding: 32px 40px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 22px;
+    line-height: 1.8;
+    width: 100%;
+    color: #e0e0e0;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+  }
+
+  .badge-wip { color: #f0c040; font-weight: 700; }
+  .badge-done { color: #40c080; font-weight: 700; }
+  .task-dim { color: #777; }
+  .info-line { color: #666; }
+  .ctx-green { color: #40c080; }
+
+  /* Slide 2: Pain Point */
+  .slide-pain {
+    background: linear-gradient(145deg, #fff5f5 0%, #ffe8e8 100%);
+  }
+
+  .slide-pain h2 {
+    font-size: 46px;
+    font-weight: 900;
+    text-align: center;
+    margin-bottom: 48px;
+    color: #2a1a1a;
+  }
+
+  .pain-tabs {
+    display: flex;
+    gap: 20px;
+    width: 100%;
+  }
+
+  .pain-tab {
+    flex: 1;
+    background: #fff;
+    border-radius: 16px;
+    padding: 28px;
+    text-align: center;
+    border: 1px solid #f0d0d0;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+  }
+
+  .pain-tab .tab-label {
+    font-size: 18px;
+    color: #999;
+    margin-bottom: 16px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .pain-tab .tab-content {
+    font-size: 48px;
+    line-height: 1;
+  }
+
+  .pain-caption {
+    margin-top: 40px;
+    font-size: 28px;
+    color: #e04040;
+    text-align: center;
+    font-weight: 600;
+  }
+
+  /* Slide 3: Solution */
+  .slide-solution {
+    background: linear-gradient(145deg, #f0fff5 0%, #e0f8ea 100%);
+  }
+
+  .slide-solution h2 {
+    font-size: 46px;
+    font-weight: 900;
+    text-align: center;
+    margin-bottom: 48px;
+    color: #1a2e1a;
+  }
+
+  .solution-tabs {
+    display: flex;
+    gap: 20px;
+    width: 100%;
+  }
+
+  .solution-tab {
+    flex: 1;
+    background: #1e1e2e;
+    border-radius: 16px;
+    padding: 28px;
+    color: #e0e0e0;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  }
+
+  .solution-tab .tab-label {
+    font-size: 16px;
+    color: #888;
+    margin-bottom: 12px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .solution-tab .statusline {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 17px;
+    line-height: 1.8;
+  }
+
+  .solution-caption {
+    margin-top: 40px;
+    font-size: 28px;
+    color: #20a060;
+    text-align: center;
+    font-weight: 600;
+  }
+
+  /* Slide 4: Features */
+  .slide-features {
+    background: linear-gradient(145deg, #f8f8ff 0%, #f0f0ff 100%);
+  }
+
+  .slide-features h2 {
+    font-size: 46px;
+    font-weight: 900;
+    text-align: center;
+    margin-bottom: 48px;
+    color: #1a1a2e;
+  }
+
+  .features-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    width: 100%;
+  }
+
+  .feature-card {
+    background: #fff;
+    border-radius: 16px;
+    padding: 32px;
+    border: 1px solid #e0e0f0;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+  }
+
+  .feature-card .icon {
+    font-size: 36px;
+    margin-bottom: 16px;
+  }
+
+  .feature-card h3 {
+    font-size: 22px;
+    font-weight: 700;
+    margin-bottom: 10px;
+    color: #1a1a2e;
+  }
+
+  .feature-card p {
+    font-size: 17px;
+    color: #666;
+    line-height: 1.5;
+  }
+
+  /* Slide 5: Install */
+  .slide-install {
+    background: linear-gradient(145deg, #f8f8ff 0%, #eef0ff 100%);
+  }
+
+  .slide-install h2 {
+    font-size: 46px;
+    font-weight: 900;
+    text-align: center;
+    margin-bottom: 48px;
+    color: #1a1a2e;
+  }
+
+  .install-block {
+    background: #1e1e2e;
+    border-radius: 16px;
+    padding: 40px 48px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 24px;
+    line-height: 2;
+    width: 100%;
+    color: #e0e0e0;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+  }
+
+  .install-block .comment { color: #666; }
+  .install-block .cmd { color: #40c080; }
+
+  .slide-install .footer {
+    margin-top: 48px;
+    font-size: 22px;
+    color: #666;
+    text-align: center;
+  }
+
+  .slide-label {
+    position: absolute;
+    bottom: 24px;
+    right: 32px;
+    font-size: 14px;
+    color: #bbb;
+    font-family: 'JetBrains Mono', monospace;
+  }
+</style>
+</head>
+<body>
+
+<!-- Slide 1: Hero -->
+<div class="slide slide-hero">
+  <h1>
+    <span class="highlight">claude-tab-tracking</span><br>
+    多会话任务追踪
+  </h1>
+  <p class="tagline">
+    一眼看清每个 Claude Code 会话在做什么<br>
+    自动识别 · 实时更新 · 零配置
+  </p>
+  <div class="terminal-preview">
+    <span class="badge-wip">[WIP]</span>&nbsp; Add unit tests for hello.py<br>
+    <span class="badge-done task-dim">[DONE]</span> <span class="task-dim">Add greet function to hello.py</span><br>
+    <span class="info-line">my-project &nbsp;| &nbsp;ctx <span class="ctx-green">8%</span> &nbsp;| &nbsp;3min</span>
+  </div>
+  <span class="slide-label">1/5</span>
+</div>
+
+<!-- Slide 2: Pain Point -->
+<div class="slide slide-pain">
+  <h2>痛点：哪个窗口在干嘛？</h2>
+  <div class="pain-tabs">
+    <div class="pain-tab">
+      <div class="tab-label">Tab 1</div>
+      <div class="tab-content">🤔</div>
+    </div>
+    <div class="pain-tab">
+      <div class="tab-label">Tab 2</div>
+      <div class="tab-content">🤔</div>
+    </div>
+    <div class="pain-tab">
+      <div class="tab-label">Tab 3</div>
+      <div class="tab-content">🤔</div>
+    </div>
+    <div class="pain-tab">
+      <div class="tab-label">Tab 4</div>
+      <div class="tab-content">🤔</div>
+    </div>
+  </div>
+  <p class="pain-caption">同时开了 4 个 Claude Code<br>切过去之前完全不知道哪个在做什么</p>
+  <span class="slide-label">2/5</span>
+</div>
+
+<!-- Slide 3: Solution -->
+<div class="slide slide-solution">
+  <h2>装完插件后 ↓</h2>
+  <div class="solution-tabs">
+    <div class="solution-tab">
+      <div class="tab-label">Tab 1</div>
+      <div class="statusline">
+        <span class="badge-wip">[WIP]</span> Fix auth bug<br>
+        <span class="info-line">api-server | ctx <span class="ctx-green">12%</span></span>
+      </div>
+    </div>
+    <div class="solution-tab">
+      <div class="tab-label">Tab 2</div>
+      <div class="statusline">
+        <span class="badge-done">[DONE]</span> Deploy to prod<br>
+        <span class="info-line">infra | ctx <span class="ctx-green">5%</span></span>
+      </div>
+    </div>
+    <div class="solution-tab">
+      <div class="tab-label">Tab 3</div>
+      <div class="statusline">
+        <span class="badge-wip">[WIP]</span> Write tests<br>
+        <span class="info-line">my-app | ctx <span class="ctx-green">23%</span></span>
+      </div>
+    </div>
+  </div>
+  <p class="solution-caption">每个窗口一目了然</p>
+  <span class="slide-label">3/5</span>
+</div>
+
+<!-- Slide 4: Features -->
+<div class="slide slide-features">
+  <h2>核心功能</h2>
+  <div class="features-grid">
+    <div class="feature-card">
+      <div class="icon">🤖</div>
+      <h3>自动识别任务</h3>
+      <p>从对话上下文自动提取当前任务，不需要手动输入任何东西</p>
+    </div>
+    <div class="feature-card">
+      <div class="icon">🔄</div>
+      <h3>实时更新</h3>
+      <p>每轮对话自动更新任务描述，任务完成自动切换到 [DONE]</p>
+    </div>
+    <div class="feature-card">
+      <div class="icon">📋</div>
+      <h3>历史追踪</h3>
+      <p>完成一个任务开始下一个时，上一个任务保留可见</p>
+    </div>
+    <div class="feature-card">
+      <div class="icon">⚡</div>
+      <h3>零配置</h3>
+      <p>两行命令安装，自动选择最佳摘要后端（Claude API / Ollama / 关键词）</p>
+    </div>
+  </div>
+  <span class="slide-label">4/5</span>
+</div>
+
+<!-- Slide 5: Install -->
+<div class="slide slide-install">
+  <h2>两行安装，开箱即用</h2>
+  <div class="install-block">
+    <span class="comment"># Clone the repo</span><br>
+    <span class="cmd">git clone https://github.com/lighthouse-strategy/claude-tab-tracking.git</span><br>
+    <br>
+    <span class="comment"># Install</span><br>
+    <span class="cmd">cd claude-tab-tracking && ./install.sh</span><br>
+    <br>
+    <span class="comment"># Done! Open a new Claude Code session.</span>
+  </div>
+  <p class="footer">
+    MIT 开源 · GitHub: lighthouse-strategy/claude-tab-tracking
+  </p>
+  <span class="slide-label">5/5</span>
+</div>
+
+</body>
+</html>

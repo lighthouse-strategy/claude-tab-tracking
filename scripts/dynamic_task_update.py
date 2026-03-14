@@ -26,11 +26,16 @@ SYSTEM_PROMPT = (
     'summarize what is currently being worked on in one sentence '
     '(under 25 characters if Chinese, under 40 if English). '
     'Focus on the overall goal, not just the latest message. '
+    'IMPORTANT: When the user message contains ambiguous terms, '
+    'use the assistant responses to determine the correct meaning. '
+    'For example, if user says "中超" and assistant replies about supermarkets, '
+    'the task is about Chinese supermarkets, not the football league. '
     'Output only the task description — no explanations, no quotes, no extra punctuation. '
     'Only prefix with "[完成] " if there is clear evidence across multiple turns that the task is fully done.'
 )
 
 USER_PROMPT_TEMPLATE = """根据以下完整对话记录，综合判断当前正在进行的任务。请关注整体目标和对话走向，而不只是最后一条消息。
+注意：如果用户用词有歧义，请根据 Claude 的实际回复内容来判断正确含义。
 
 对话记录（含开头和最近内容）：
 {conversation}
