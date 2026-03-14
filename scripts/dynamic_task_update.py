@@ -250,6 +250,26 @@ COMPLETION_KEYWORDS = [
 ]
 
 
+def detect_task_boundary(messages):
+    """Find the start of the current task after the last completion signal.
+
+    Returns the index of the first user message after the last detected
+    completion, or 0 if no boundary found.
+    """
+    boundary = 0
+    for i, m in enumerate(messages):
+        if m['role'] != 'assistant':
+            continue
+        text = m['content'].lower()
+        hits = sum(1 for kw in COMPLETION_KEYWORDS if kw in text)
+        if hits >= 3:
+            for j in range(i + 1, len(messages)):
+                if messages[j]['role'] == 'user':
+                    boundary = j
+                    break
+    return boundary
+
+
 def keyword_fallback(messages):
     user_msgs = [m['content'] for m in messages if m['role'] == 'user']
     asst_msgs = [m['content'] for m in messages if m['role'] == 'assistant']
@@ -275,6 +295,12 @@ def main():
 
     transcript_path, task_file_path = sys.argv[1], sys.argv[2]
     messages = parse_transcript(transcript_path)
+    if not messages:
+        sys.exit(0)
+
+    boundary = detect_task_boundary(messages)
+    if boundary > 0:
+        messages = messages[boundary:]
     if not messages:
         sys.exit(0)
 
