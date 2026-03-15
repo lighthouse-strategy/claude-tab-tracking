@@ -37,17 +37,41 @@
 | `TaskCompleted` | Claude 明确完成任务时标记为 `[DONE]` |
 | `SessionEnd` | 清理会话状态文件 |
 
-### 摘要生成后端（自动检测，无需配置）
+### 摘要生成后端
 
 插件自动选择最佳可用后端：
 
-| 优先级 | 后端 | 质量 | 成本 |
-|--------|------|------|------|
-| 1 | Claude API（需设置 `ANTHROPIC_API_KEY`） | 最佳 | 约 $1/月 |
-| 2 | Ollama（本地模型） | 良好 | 免费 |
-| 3 | 关键词匹配 | 基础 | 免费 |
+| 优先级 | 后端 | 质量 | 速度 | 成本 |
+|--------|------|------|------|------|
+| 1 | Claude API（需设置 `ANTHROPIC_API_KEY`） | 最佳 | ~2 秒 | 约 $1/月 |
+| 2 | Ollama（本地模型） | 良好 | ~2 秒 | 免费 |
+| 3 | Claude Code CLI（Max 订阅） | 最佳 | ~10 秒（异步） | 包含在订阅内 |
+| 4 | 关键词匹配 | 基础 | 即时 | 免费 |
 
-无需额外设置，开箱即用。设置 `ANTHROPIC_API_KEY` 环境变量可获得最佳效果。
+无需额外设置，开箱即用。
+
+#### 选择后端
+
+设置 `CLAUDE_TAB_BACKEND` 环境变量来指定后端：
+
+```bash
+# 仅使用 Claude Code CLI（Max 订阅，无需 API key）
+export CLAUDE_TAB_BACKEND=cli
+
+# 仅使用 Anthropic API
+export CLAUDE_TAB_BACKEND=api
+
+# 仅使用本地 Ollama
+export CLAUDE_TAB_BACKEND=ollama
+
+# 仅使用关键词匹配（零网络请求）
+export CLAUDE_TAB_BACKEND=keyword
+
+# 自动检测最佳后端（默认）
+export CLAUDE_TAB_BACKEND=auto
+```
+
+指定某个后端时，如果该后端失败则不会回退。设为 `auto`（或不设置）时，按优先级依次尝试所有后端。
 
 ## 安装
 
@@ -82,6 +106,7 @@ cd claude-tab-tracking && ./install.sh
 | `~/.claude/scripts/session_start.sh` | SessionStart hook |
 | `~/.claude/scripts/dynamic_task_update.sh` | Stop hook（bash 封装） |
 | `~/.claude/scripts/dynamic_task_update.py` | Stop hook（对话解析 + LLM 摘要） |
+| `~/.claude/scripts/cli_background.py` | Claude Code CLI 后端的后台执行脚本 |
 | `~/.claude/scripts/task_completed.sh` | TaskCompleted hook |
 | `~/.claude/scripts/session_statusline.sh` | 状态栏渲染 |
 | `~/.claude/scripts/session_end.sh` | SessionEnd 清理 |
@@ -94,6 +119,7 @@ cd claude-tab-tracking && ./install.sh
 rm -f ~/.claude/scripts/session_start.sh \
       ~/.claude/scripts/dynamic_task_update.sh \
       ~/.claude/scripts/dynamic_task_update.py \
+      ~/.claude/scripts/cli_background.py \
       ~/.claude/scripts/task_completed.sh \
       ~/.claude/scripts/session_statusline.sh \
       ~/.claude/scripts/session_end.sh \

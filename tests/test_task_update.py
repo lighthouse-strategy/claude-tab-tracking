@@ -279,3 +279,113 @@ def test_prev_line_stripped_properly(tmp_path):
                 break
 
     assert prev_line == "PREV:Old task"  # no \r
+
+
+# ---------------------------------------------------------------------------
+# Tests for _get_backend_chain
+# ---------------------------------------------------------------------------
+
+import subprocess
+
+from dynamic_task_update import (
+    _get_backend_chain,
+    claude_cli_summarize,
+    claude_summarize,
+    ollama_summarize,
+)
+
+
+def test_backend_chain_auto(monkeypatch):
+    monkeypatch.delenv('CLAUDE_TAB_BACKEND', raising=False)
+    chain = _get_backend_chain()
+    assert chain[0] is claude_summarize
+    assert chain[1] is ollama_summarize
+    assert chain[2] is claude_cli_summarize
+    assert chain[3] is keyword_fallback
+
+
+def test_backend_chain_cli_only(monkeypatch):
+    monkeypatch.setenv('CLAUDE_TAB_BACKEND', 'cli')
+    chain = _get_backend_chain()
+    assert len(chain) == 1
+    assert chain[0] is claude_cli_summarize
+
+
+def test_backend_chain_api_only(monkeypatch):
+    monkeypatch.setenv('CLAUDE_TAB_BACKEND', 'api')
+    chain = _get_backend_chain()
+    assert len(chain) == 1
+    assert chain[0] is claude_summarize
+
+
+def test_backend_chain_ollama_only(monkeypatch):
+    monkeypatch.setenv('CLAUDE_TAB_BACKEND', 'ollama')
+    chain = _get_backend_chain()
+    assert len(chain) == 1
+    assert chain[0] is ollama_summarize
+
+
+def test_backend_chain_keyword_only(monkeypatch):
+    monkeypatch.setenv('CLAUDE_TAB_BACKEND', 'keyword')
+    chain = _get_backend_chain()
+    assert len(chain) == 1
+    assert chain[0] is keyword_fallback
+
+
+def test_backend_chain_invalid_falls_back_to_auto(monkeypatch):
+    monkeypatch.setenv('CLAUDE_TAB_BACKEND', 'nonexistent')
+    chain = _get_backend_chain()
+    assert len(chain) == 4  # same as auto
+
+
+# ---------------------------------------------------------------------------
+# Tests for claude_cli_summarize
+# ---------------------------------------------------------------------------
+
+
+def test_claude_cli_summarize_success(monkeypatch):
+    """claude_cli_summarize should parse CLI stdout into task description."""
+    def mock_run(cmd, **kwargs):
+        class Result:
+            returncode = 0
+            stdout = '修复认证 bug'
+            stderr = ''
+        return Result()
+
+    monkeypatch.setattr(subprocess, 'run', mock_run)
+    msgs = [_msg('user', 'Fix the auth bug'), _msg('assistant', 'Working on it')]
+    task, done = claude_cli_summarize(msgs)
+    assert task == '修复认证 bug'
+    assert done is False
+
+
+def test_claude_cli_summarize_done(monkeypatch):
+    """claude_cli_summarize should detect completion prefix."""
+    def mock_run(cmd, **kwargs):
+        class Result:
+            returncode = 0
+            stdout = '[完成] 修复认证 bug'
+            stderr = ''
+        return Result()
+
+    monkeypatch.setattr(subprocess, 'run', mock_run)
+    msgs = [_msg('user', 'Fix the auth bug'), _msg('assistant', 'Done')]
+    task, done = claude_cli_summarize(msgs)
+    assert task == '修复认证 bug'
+    assert done is True
+
+
+def test_claude_cli_summarize_failure(monkeypatch):
+    """claude_cli_summarize should raise on non-zero exit code."""
+    def mock_run(cmd, **kwargs):
+        class Result:
+            returncode = 1
+            stdout = ''
+            stderr = 'error'
+        return Result()
+
+    monkeypatch.setattr(subprocess, 'run', mock_run)
+    msgs = [_msg('user', 'Fix the bug')]
+    import pytest
+    with pytest.raises(RuntimeError):
+        claude_cli_summarize(msgs)

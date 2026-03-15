@@ -2,16 +2,19 @@
 """
 Reads Claude Code transcript JSONL and generates a one-line task summary.
 
-Summarization priority (auto-detected, no config needed):
-  1. Claude API  — if ANTHROPIC_API_KEY is set
-  2. Ollama      — if a local server is running on port 11434
-  3. Keywords    — always available, zero dependencies
+Summarization backends (set CLAUDE_TAB_BACKEND to choose):
+  "auto"    — try all backends in order: claude-cli → api → ollama → keywords (default)
+  "cli"     — Claude Code CLI only (uses your Max subscription, no API key needed)
+  "api"     — Claude API only (requires ANTHROPIC_API_KEY)
+  "ollama"  — Ollama only (requires local server on port 11434)
+  "keyword" — keyword heuristics only (zero dependencies)
 
 Updates task file with WIP:description or DONE:description.
 """
 import json
 import os
 import re
+import subprocess
 import sys
 import urllib.request
 
@@ -141,6 +144,67 @@ def parse_llm_response(response):
     if len(task) > 60:
         task = task[:57] + '...'
     return task, is_done
+
+
+# ---------------------------------------------------------------------------
+# Backend 0: Claude Code CLI (uses Max subscription, no API key needed)
+# ---------------------------------------------------------------------------
+
+CLAUDE_CLI_TIMEOUT = 60
+
+
+def claude_cli_summarize(messages, task_file_path=None):
+    """Call claude CLI in print mode, asynchronously.
+
+    Because ``claude -p`` has ~30s startup overhead, this backend spawns the
+    process in the background and writes the result to *task_file_path* when
+    ready.  When *task_file_path* is provided (the normal path from main()),
+    the function launches the helper and returns ``None`` so the caller skips
+    synchronous writing.  When *task_file_path* is ``None`` (unit tests), it
+    falls back to a blocking call.
+    """
+    conversation = build_conversation_snippet(messages)
+    user_content = USER_PROMPT_TEMPLATE.format(conversation=conversation)
+    prompt = f"{SYSTEM_PROMPT}\n\n{user_content}"
+
+    if task_file_path is None:
+        # Synchronous path (for tests / direct invocation)
+        result = subprocess.run(
+            ['claude', '-p', '--model', 'haiku'],
+            input=prompt,
+            capture_output=True, text=True,
+            timeout=CLAUDE_CLI_TIMEOUT,
+        )
+        if result.returncode != 0:
+            raise RuntimeError(f'claude CLI exited with {result.returncode}')
+        text = result.stdout.strip()
+        if not text:
+            raise ValueError('empty response from claude CLI')
+        return parse_llm_response(text)
+
+    # Async path — fire-and-forget background process
+    _launch_cli_background(prompt, task_file_path)
+    return None  # signal: handled async, caller should not write
+
+
+_CLI_HELPER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'cli_background.py')
+
+
+def _launch_cli_background(prompt, task_file_path):
+    """Spawn a detached process that calls claude CLI and writes the result."""
+    import tempfile
+    # Write prompt to a temp file so the helper can read it safely
+    fd, prompt_path = tempfile.mkstemp(prefix='claude_tab_', suffix='.txt')
+    with os.fdopen(fd, 'w', encoding='utf-8') as f:
+        f.write(prompt)
+
+    subprocess.Popen(
+        [sys.executable, _CLI_HELPER, prompt_path, task_file_path],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -291,6 +355,30 @@ def keyword_fallback(messages):
 
 
 # ---------------------------------------------------------------------------
+# Backend registry
+# ---------------------------------------------------------------------------
+
+BACKENDS = {
+    'cli': claude_cli_summarize,
+    'api': claude_summarize,
+    'ollama': ollama_summarize,
+    'keyword': keyword_fallback,
+}
+
+AUTO_ORDER = ['api', 'ollama', 'cli', 'keyword']
+
+
+def _get_backend_chain():
+    """Return list of backend functions based on CLAUDE_TAB_BACKEND env var."""
+    choice = os.environ.get('CLAUDE_TAB_BACKEND', 'auto').strip().lower()
+    if choice == 'auto':
+        return [BACKENDS[k] for k in AUTO_ORDER]
+    if choice in BACKENDS:
+        return [BACKENDS[choice]]
+    return [BACKENDS[k] for k in AUTO_ORDER]
+
+
+# ---------------------------------------------------------------------------
 # Main — try each backend in priority order
 # ---------------------------------------------------------------------------
 
@@ -310,9 +398,16 @@ def main():
         sys.exit(0)
 
     task_desc = is_done = None
-    for backend in (claude_summarize, ollama_summarize, keyword_fallback):
+    for backend in _get_backend_chain():
         try:
-            task_desc, is_done = backend(messages)
+            if backend is claude_cli_summarize:
+                result = backend(messages, task_file_path=task_file_path)
+                if result is None:
+                    # CLI backend launched async — it will write the file itself
+                    sys.exit(0)
+                task_desc, is_done = result
+            else:
+                task_desc, is_done = backend(messages)
             if task_desc:
                 break
         except Exception:

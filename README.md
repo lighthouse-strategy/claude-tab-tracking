@@ -39,17 +39,41 @@ Four Claude Code hooks work together:
 
 The statusline script reads the task file for the current session and renders the display.
 
-### Summarization backends (auto-detected, no config required)
+### Summarization backends
 
 The plugin picks the best available backend automatically:
 
-| Priority | Backend | Quality | Cost |
-|----------|---------|---------|------|
-| 1 | Claude API (`ANTHROPIC_API_KEY` set) | Best | ~$1/month |
-| 2 | Ollama (local model running) | Good | Free |
-| 3 | Keyword heuristics | Basic | Free |
+| Priority | Backend | Quality | Speed | Cost |
+|----------|---------|---------|-------|------|
+| 1 | Claude API (`ANTHROPIC_API_KEY` set) | Best | ~2s | ~$1/month |
+| 2 | Ollama (local model running) | Good | ~2s | Free |
+| 3 | Claude Code CLI (Max subscription) | Best | ~10s (async) | Included in subscription |
+| 4 | Keyword heuristics | Basic | instant | Free |
 
-No setup needed — it works out of the box. Set `ANTHROPIC_API_KEY` in your environment for the best results.
+No setup needed — it works out of the box with any of the above.
+
+#### Choosing a backend
+
+Set the `CLAUDE_TAB_BACKEND` environment variable to pick a specific backend:
+
+```bash
+# Use only Claude Code CLI (Max subscription, no API key needed)
+export CLAUDE_TAB_BACKEND=cli
+
+# Use only the Anthropic API
+export CLAUDE_TAB_BACKEND=api
+
+# Use only local Ollama
+export CLAUDE_TAB_BACKEND=ollama
+
+# Use only keyword heuristics (zero network calls)
+export CLAUDE_TAB_BACKEND=keyword
+
+# Auto-detect best available (default)
+export CLAUDE_TAB_BACKEND=auto
+```
+
+When set to a specific backend, no fallback is attempted — if that backend fails, the task description is not updated. When set to `auto` (or unset), all backends are tried in order.
 
 ## Install
 
@@ -84,6 +108,7 @@ This writes a `MANUAL:` prefix that pins the description and stops auto-updates 
 | `~/.claude/scripts/session_start.sh` | SessionStart hook |
 | `~/.claude/scripts/dynamic_task_update.sh` | Stop hook (bash wrapper) |
 | `~/.claude/scripts/dynamic_task_update.py` | Stop hook (transcript parser + LLM summarization) |
+| `~/.claude/scripts/cli_background.py` | Background helper for Claude Code CLI backend |
 | `~/.claude/scripts/task_completed.sh` | TaskCompleted hook |
 | `~/.claude/scripts/session_statusline.sh` | Statusline renderer |
 | `~/.claude/scripts/session_end.sh` | SessionEnd cleanup |
@@ -96,6 +121,7 @@ This writes a `MANUAL:` prefix that pins the description and stops auto-updates 
 rm -f ~/.claude/scripts/session_start.sh \
       ~/.claude/scripts/dynamic_task_update.sh \
       ~/.claude/scripts/dynamic_task_update.py \
+      ~/.claude/scripts/cli_background.py \
       ~/.claude/scripts/task_completed.sh \
       ~/.claude/scripts/session_statusline.sh \
       ~/.claude/scripts/session_end.sh \
