@@ -595,3 +595,34 @@ def test_cli_background_parse_response_no_memo():
     assert task == 'Fix the data pipeline'
     assert done is False
     assert memo == ''
+
+
+# ---------------------------------------------------------------------------
+# Tests for archive_old_memos
+# ---------------------------------------------------------------------------
+
+import time as time_module
+from dynamic_task_update import archive_old_memos
+
+
+def test_archive_old_memos(tmp_path):
+    memo_dir = tmp_path / 'memos'
+    proj_dir = memo_dir / 'test-project'
+    proj_dir.mkdir(parents=True)
+
+    # Create an "old" file
+    old_file = proj_dir / '2025-12-01.md'
+    old_file.write_text('# old memo')
+    old_time = time_module.time() - (100 * 86400)
+    os.utime(str(old_file), (old_time, old_time))
+
+    # Create a "recent" file
+    new_file = proj_dir / '2026-03-21.md'
+    new_file.write_text('# new memo')
+
+    archive_old_memos(str(memo_dir), archive_days=90)
+
+    archive_dir = memo_dir / '_archive' / 'test-project'
+    assert not old_file.exists()
+    assert (archive_dir / '2025-12-01.md').exists()
+    assert new_file.exists()

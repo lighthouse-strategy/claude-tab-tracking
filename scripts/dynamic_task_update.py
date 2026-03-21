@@ -14,9 +14,12 @@ Updates task file with WIP:description or DONE:description.
 import json
 import os
 import pathlib
+import random
 import re
+import shutil
 import subprocess
 import sys
+import time
 import urllib.request
 from datetime import datetime
 
@@ -529,6 +532,30 @@ def write_memo(memo_content, task_desc, project_name, memo_base_dir=None):
 
 
 # ---------------------------------------------------------------------------
+# Archival helpers
+# ---------------------------------------------------------------------------
+
+def archive_old_memos(memo_base_dir=None, archive_days=90):
+    """Move memo files older than archive_days to _archive/ directory."""
+    if memo_base_dir is None:
+        memo_base_dir = MEMO_BASE_DIR
+    cutoff = time.time() - (archive_days * 86400)
+    archive_base = os.path.join(memo_base_dir, '_archive')
+    for entry in os.listdir(memo_base_dir):
+        proj_dir = os.path.join(memo_base_dir, entry)
+        if not os.path.isdir(proj_dir) or entry.startswith('_') or entry == 'config.yaml':
+            continue
+        for fname in os.listdir(proj_dir):
+            if not fname.endswith('.md'):
+                continue
+            fpath = os.path.join(proj_dir, fname)
+            if os.path.getmtime(fpath) < cutoff:
+                dest_dir = os.path.join(archive_base, entry)
+                os.makedirs(dest_dir, exist_ok=True)
+                shutil.move(fpath, os.path.join(dest_dir, fname))
+
+
+# ---------------------------------------------------------------------------
 # Main — try each backend in priority order
 # ---------------------------------------------------------------------------
 
@@ -542,6 +569,13 @@ def main():
         sys.exit(0)
 
     memo_config = load_memo_config()
+
+    # Probabilistic archival check (1 in 50 calls)
+    if random.randint(1, 50) == 1:
+        try:
+            archive_old_memos(archive_days=memo_config['archive_days'])
+        except Exception:
+            pass
 
     boundary = detect_task_boundary(messages)
     if boundary > 0:
