@@ -131,19 +131,37 @@ def build_conversation_snippet(messages, max_exchanges=10):
 # ---------------------------------------------------------------------------
 
 def parse_llm_response(response):
-    """Extract (task_description, is_done) from LLM output."""
+    """Extract (task_description, is_done, memo) from LLM output."""
     response = response.strip()
+    lines = response.splitlines()
+
+    # Extract memo line (备忘： or 备忘:)
+    memo = ''
+    task_lines = []
+    for line in lines:
+        m = re.match(r'^备忘[：:](.*)$', line.strip())
+        if m:
+            memo = m.group(1).strip()
+        else:
+            task_lines.append(line)
+
+    # Reconstruct task text (first non-memo line)
+    task_text = task_lines[0].strip() if task_lines else ''
+
+    # Strip 任务： or 任务: prefix from task line
+    task_text = re.sub(r'^任务[：:]\s*', '', task_text)
+
     is_done = bool(re.match(
         r'^(\[完成\]|完成\s|完成：|completed[: ]|\[done\])',
-        response, re.IGNORECASE
+        task_text, re.IGNORECASE
     ))
     task = re.sub(
         r'^(\[完成\]\s*|完成\s+|完成：\s*|\[done\]\s*|completed:\s*)',
-        '', response, flags=re.IGNORECASE
+        '', task_text, flags=re.IGNORECASE
     ).strip()
     if len(task) > 60:
         task = task[:57] + '...'
-    return task, is_done
+    return task, is_done, memo
 
 
 # ---------------------------------------------------------------------------
@@ -343,7 +361,7 @@ def keyword_fallback(messages):
     user_msgs = [m['content'] for m in messages if m['role'] == 'user']
     asst_msgs = [m['content'] for m in messages if m['role'] == 'assistant']
     if not user_msgs:
-        return None, False
+        return None, False, ''
     # Use first user message as task anchor (original intent), truncated
     task_desc = re.sub(r'\s+', ' ', user_msgs[0]).strip()[:70]
     # Check the last 3 assistant messages for completion signals
@@ -351,7 +369,7 @@ def keyword_fallback(messages):
     kw_hits = sum(1 for msg in recent_asst for kw in COMPLETION_KEYWORDS if kw in msg)
     # Require 3+ keyword hits across recent messages to reduce false positives
     is_done = kw_hits >= 3
-    return task_desc, is_done
+    return task_desc, is_done, ''
 
 
 # ---------------------------------------------------------------------------
@@ -398,6 +416,7 @@ def main():
         sys.exit(0)
 
     task_desc = is_done = None
+    memo_content = ''
     for backend in _get_backend_chain():
         try:
             if backend is claude_cli_summarize:
@@ -405,9 +424,9 @@ def main():
                 if result is None:
                     # CLI backend launched async — it will write the file itself
                     sys.exit(0)
-                task_desc, is_done = result
+                task_desc, is_done, memo_content = result
             else:
-                task_desc, is_done = backend(messages)
+                task_desc, is_done, memo_content = backend(messages)
             if task_desc:
                 break
         except Exception:

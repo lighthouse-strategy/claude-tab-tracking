@@ -85,28 +85,76 @@ from dynamic_task_update import parse_llm_response
 
 
 def test_parse_plain_text():
-    task, done = parse_llm_response('Fix the data pipeline')
+    task, done, memo = parse_llm_response('Fix the data pipeline')
     assert task == 'Fix the data pipeline'
     assert done is False
+    assert memo == ''
 
 
 def test_parse_done_chinese():
-    task, done = parse_llm_response('[完成] 修复数据管道')
+    task, done, memo = parse_llm_response('[完成] 修复数据管道')
     assert task == '修复数据管道'
     assert done is True
+    assert memo == ''
 
 
 def test_parse_done_english():
-    task, done = parse_llm_response('[DONE] Fix the pipeline')
+    task, done, memo = parse_llm_response('[DONE] Fix the pipeline')
     assert task == 'Fix the pipeline'
     assert done is True
+    assert memo == ''
 
 
 def test_parse_truncates_long_text():
     long_text = 'A' * 100
-    task, done = parse_llm_response(long_text)
+    task, done, memo = parse_llm_response(long_text)
     assert len(task) <= 60
     assert task.endswith('...')
+    assert memo == ''
+
+
+# ---------------------------------------------------------------------------
+# Tests for memo parsing
+# ---------------------------------------------------------------------------
+
+
+def test_parse_response_with_memo():
+    response = '任务：修复登录页验证\n备忘：【决策】改用 JWT | 【数据】影响 3 个 endpoint'
+    task, is_done, memo = parse_llm_response(response)
+    assert task == '修复登录页验证'
+    assert is_done is False
+    assert memo == '【决策】改用 JWT | 【数据】影响 3 个 endpoint'
+
+
+def test_parse_response_without_memo():
+    response = '任务：修复登录页验证'
+    task, is_done, memo = parse_llm_response(response)
+    assert task == '修复登录页验证'
+    assert is_done is False
+    assert memo == ''
+
+
+def test_parse_response_no_prefix_backward_compat():
+    response = 'Fix the data pipeline'
+    task, is_done, memo = parse_llm_response(response)
+    assert task == 'Fix the data pipeline'
+    assert is_done is False
+    assert memo == ''
+
+
+def test_parse_response_done_with_memo():
+    response = '任务：[完成] 修复数据管道\n备忘：【结论】根因是缓存过期'
+    task, is_done, memo = parse_llm_response(response)
+    assert task == '修复数据管道'
+    assert is_done is True
+    assert memo == '【结论】根因是缓存过期'
+
+
+def test_parse_response_memo_only_no_task_prefix():
+    response = '修复登录页\n备忘：【决策】改用 JWT'
+    task, is_done, memo = parse_llm_response(response)
+    assert task == '修复登录页'
+    assert memo == '【决策】改用 JWT'
 
 
 # ---------------------------------------------------------------------------
@@ -121,9 +169,10 @@ def test_keyword_no_completion():
         _msg('user', 'Fix the bug in parser'),
         _msg('assistant', 'I see the issue, working on it now.'),
     ]
-    task, done = keyword_fallback(msgs)
+    task, done, memo = keyword_fallback(msgs)
     assert task is not None
     assert done is False
+    assert memo == ''
 
 
 def test_keyword_clear_completion():
@@ -131,8 +180,9 @@ def test_keyword_clear_completion():
         _msg('user', 'Fix the auth bug'),
         _msg('assistant', 'The bug is fixed and all tests pass. The fix is deployed successfully.'),
     ]
-    task, done = keyword_fallback(msgs)
+    task, done, memo = keyword_fallback(msgs)
     assert done is True
+    assert memo == ''
 
 
 def test_keyword_edge_case_two_hits_not_done():
@@ -140,14 +190,16 @@ def test_keyword_edge_case_two_hits_not_done():
         _msg('user', 'Fix the bug'),
         _msg('assistant', 'I have finished the investigation. The root cause is identified.'),
     ]
-    task, done = keyword_fallback(msgs)
+    task, done, memo = keyword_fallback(msgs)
     assert done is False
+    assert memo == ''
 
 
 def test_keyword_empty_messages():
-    task, done = keyword_fallback([])
+    task, done, memo = keyword_fallback([])
     assert task is None
     assert done is False
+    assert memo == ''
 
 
 # ---------------------------------------------------------------------------
@@ -354,9 +406,10 @@ def test_claude_cli_summarize_success(monkeypatch):
 
     monkeypatch.setattr(subprocess, 'run', mock_run)
     msgs = [_msg('user', 'Fix the auth bug'), _msg('assistant', 'Working on it')]
-    task, done = claude_cli_summarize(msgs)
+    task, done, memo = claude_cli_summarize(msgs)
     assert task == '修复认证 bug'
     assert done is False
+    assert memo == ''
 
 
 def test_claude_cli_summarize_done(monkeypatch):
@@ -370,9 +423,10 @@ def test_claude_cli_summarize_done(monkeypatch):
 
     monkeypatch.setattr(subprocess, 'run', mock_run)
     msgs = [_msg('user', 'Fix the auth bug'), _msg('assistant', 'Done')]
-    task, done = claude_cli_summarize(msgs)
+    task, done, memo = claude_cli_summarize(msgs)
     assert task == '修复认证 bug'
     assert done is True
+    assert memo == ''
 
 
 def test_claude_cli_summarize_failure(monkeypatch):
