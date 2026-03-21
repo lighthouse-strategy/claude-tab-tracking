@@ -26,24 +26,44 @@ import urllib.request
 SYSTEM_PROMPT = (
     'You are a concise task tracker. '
     'Based on the full conversation arc — including how the task evolved across multiple exchanges — '
-    'summarize what is currently being worked on in one sentence '
-    '(under 25 characters if Chinese, under 40 if English). '
-    'Focus on the overall goal, not just the latest message. '
+    'summarize what is currently being worked on. '
     'IMPORTANT: When the user message contains ambiguous terms, '
     'use the assistant responses to determine the correct meaning. '
-    'For example, if user says "中超" and assistant replies about supermarkets, '
-    'the task is about Chinese supermarkets, not the football league. '
-    'Output only the task description — no explanations, no quotes, no extra punctuation. '
-    'Only prefix with "[完成] " if there is clear evidence across multiple turns that the task is fully done.'
+    'Output only the requested format — no explanations, no quotes, no extra punctuation.'
 )
 
-USER_PROMPT_TEMPLATE = """根据以下完整对话记录，综合判断当前正在进行的任务。请关注整体目标和对话走向，而不只是最后一条消息。
+TASK_ONLY_TEMPLATE = """根据以下完整对话记录，综合判断当前正在进行的任务。请关注整体目标和对话走向，而不只是最后一条消息。
 注意：如果用户用词有歧义，请根据 Claude 的实际回复内容来判断正确含义。
 
 对话记录（含开头和最近内容）：
 {conversation}
 
-任务描述："""
+用一句话描述任务（中文25字以内，英文40字以内）。仅在任务明确完成时加 [完成] 前缀。
+任务："""
+
+MEMO_TEMPLATE = """根据以下完整对话记录，综合判断当前正在进行的任务，并提取关键信息。
+注意：如果用户用词有歧义，请根据 Claude 的实际回复内容来判断正确含义。
+
+对话记录（含开头和最近内容）：
+{conversation}
+
+请按以下格式输出两行：
+第一行：用一句话描述任务（中文25字以内，英文40字以内）。仅在任务明确完成时加 [完成] 前缀。
+第二行以"备忘："开头：提取对话中的关键信息，用 | 分隔，每条加标签前缀（{tags}）。如果没有值得记录的信息，省略第二行。
+
+任务："""
+
+DEFAULT_TAGS = '【决策】【数据】【结论】【TODO】'
+
+
+def build_user_prompt(messages, min_turns=3, tags=None):
+    """Build the user prompt, choosing task-only or task+memo based on turn count."""
+    conversation = build_conversation_snippet(messages)
+    if tags is None:
+        tags = DEFAULT_TAGS
+    if len(messages) < min_turns:
+        return TASK_ONLY_TEMPLATE.format(conversation=conversation)
+    return MEMO_TEMPLATE.format(conversation=conversation, tags=tags)
 
 
 # ---------------------------------------------------------------------------
@@ -181,8 +201,7 @@ def claude_cli_summarize(messages, task_file_path=None):
     synchronous writing.  When *task_file_path* is ``None`` (unit tests), it
     falls back to a blocking call.
     """
-    conversation = build_conversation_snippet(messages)
-    user_content = USER_PROMPT_TEMPLATE.format(conversation=conversation)
+    user_content = build_user_prompt(messages)
     prompt = f"{SYSTEM_PROMPT}\n\n{user_content}"
 
     if task_file_path is None:
@@ -240,12 +259,11 @@ def claude_summarize(messages):
     if not api_key:
         raise EnvironmentError('ANTHROPIC_API_KEY not set')
 
-    conversation = build_conversation_snippet(messages)
-    user_content = USER_PROMPT_TEMPLATE.format(conversation=conversation)
+    user_content = build_user_prompt(messages)
 
     payload = json.dumps({
         'model': CLAUDE_MODEL,
-        'max_tokens': 80,
+        'max_tokens': 300,
         'system': SYSTEM_PROMPT,
         'messages': [{'role': 'user', 'content': user_content}],
     }).encode()
@@ -296,8 +314,7 @@ def _get_ollama_model():
 def ollama_summarize(messages):
     """Call local Ollama. Raises if Ollama is not running or has no models."""
     model = _get_ollama_model()
-    conversation = build_conversation_snippet(messages)
-    user_content = USER_PROMPT_TEMPLATE.format(conversation=conversation)
+    user_content = build_user_prompt(messages)
 
     payload = json.dumps({
         'model': model,
@@ -307,7 +324,7 @@ def ollama_summarize(messages):
             {'role': 'system', 'content': SYSTEM_PROMPT},
             {'role': 'user',   'content': user_content},
         ],
-        'options': {'temperature': 0.1, 'num_predict': 80},
+        'options': {'temperature': 0.1, 'num_predict': 300},
     }).encode()
 
     req = urllib.request.Request(

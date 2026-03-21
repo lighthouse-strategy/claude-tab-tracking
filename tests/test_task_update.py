@@ -341,10 +341,39 @@ import subprocess
 
 from dynamic_task_update import (
     _get_backend_chain,
+    build_user_prompt,
     claude_cli_summarize,
     claude_summarize,
     ollama_summarize,
 )
+
+
+# ---------------------------------------------------------------------------
+# Tests for build_user_prompt
+# ---------------------------------------------------------------------------
+
+
+def test_build_prompt_short_conversation():
+    msgs = [_msg('user', 'Hi'), _msg('assistant', 'Hello')]
+    prompt = build_user_prompt(msgs, min_turns=3)
+    assert '备忘' not in prompt
+
+
+def test_build_prompt_long_conversation():
+    msgs = [
+        _msg('user', 'Fix the bug'),
+        _msg('assistant', 'Working on it'),
+        _msg('user', 'Use JWT instead'),
+        _msg('assistant', 'Done, switched to JWT'),
+    ]
+    prompt = build_user_prompt(msgs, min_turns=3)
+    assert '备忘' in prompt
+
+
+def test_build_prompt_custom_tags():
+    msgs = [_msg('user', 'a'), _msg('assistant', 'b'), _msg('user', 'c'), _msg('assistant', 'd')]
+    prompt = build_user_prompt(msgs, min_turns=3, tags='【风险】【成本】')
+    assert '【风险】【成本】' in prompt
 
 
 def test_backend_chain_auto(monkeypatch):
