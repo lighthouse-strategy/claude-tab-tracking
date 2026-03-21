@@ -9,6 +9,7 @@ CLAUDE_DIR="$HOME/.claude"
 SCRIPTS_DIR="$CLAUDE_DIR/scripts"
 COMMANDS_DIR="$CLAUDE_DIR/commands"
 TASKS_DIR="$CLAUDE_DIR/session-tasks"
+MEMO_DIR="$CLAUDE_DIR/memos"
 SETTINGS="$CLAUDE_DIR/settings.json"
 
 echo "Installing claude-tab-tracking..."
@@ -20,12 +21,12 @@ if ! command -v jq &>/dev/null; then
 fi
 
 # --- Create directories ---
-mkdir -p "$SCRIPTS_DIR" "$COMMANDS_DIR" "$TASKS_DIR"
+mkdir -p "$SCRIPTS_DIR" "$COMMANDS_DIR" "$TASKS_DIR" "$MEMO_DIR"
 
 # --- Copy scripts ---
 cp "$REPO_DIR/scripts/"*.sh "$SCRIPTS_DIR/"
 cp "$REPO_DIR/scripts/"*.py "$SCRIPTS_DIR/"
-cp "$REPO_DIR/commands/task.md" "$COMMANDS_DIR/"
+cp "$REPO_DIR/commands/"*.md "$COMMANDS_DIR/"
 chmod +x "$SCRIPTS_DIR/"*.sh "$SCRIPTS_DIR/"*.py
 
 echo "Scripts installed to $SCRIPTS_DIR"
@@ -81,3 +82,4 @@ PYEOF
 echo ""
 echo "Done. Open a new Claude Code session to see live task tracking in the statusline."
 echo "Use /task <description> to manually set a session task."
+echo "Use /memo to view conversation memos, /recall to load past context."
