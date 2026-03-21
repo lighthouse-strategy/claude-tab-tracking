@@ -247,7 +247,7 @@ def parse_llm_response(response):
 CLAUDE_CLI_TIMEOUT = 60
 
 
-def claude_cli_summarize(messages, task_file_path=None, min_turns=3, tags=None):
+def claude_cli_summarize(messages, task_file_path=None, memo_base_dir=None, project_name=None, min_turns=3, tags=None):
     """Call claude CLI in print mode, asynchronously.
 
     Because ``claude -p`` has ~30s startup overhead, this backend spawns the
@@ -276,14 +276,14 @@ def claude_cli_summarize(messages, task_file_path=None, min_turns=3, tags=None):
         return parse_llm_response(text)
 
     # Async path — fire-and-forget background process
-    _launch_cli_background(prompt, task_file_path)
+    _launch_cli_background(prompt, task_file_path, memo_base_dir, project_name)
     return None  # signal: handled async, caller should not write
 
 
 _CLI_HELPER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'cli_background.py')
 
 
-def _launch_cli_background(prompt, task_file_path):
+def _launch_cli_background(prompt, task_file_path, memo_base_dir=None, project_name=None):
     """Spawn a detached process that calls claude CLI and writes the result."""
     import tempfile
     # Write prompt to a temp file so the helper can read it safely
@@ -291,8 +291,12 @@ def _launch_cli_background(prompt, task_file_path):
     with os.fdopen(fd, 'w', encoding='utf-8') as f:
         f.write(prompt)
 
+    args = [sys.executable, _CLI_HELPER, prompt_path, task_file_path]
+    if memo_base_dir and project_name:
+        args.extend([memo_base_dir, project_name])
+
     subprocess.Popen(
-        [sys.executable, _CLI_HELPER, prompt_path, task_file_path],
+        args,
         stdin=subprocess.DEVNULL,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
@@ -550,9 +554,13 @@ def main():
     for backend in _get_backend_chain():
         try:
             if backend is claude_cli_summarize:
+                cwd = os.environ.get('PWD', os.getcwd())
+                project = resolve_project_name(cwd)
                 result = backend(
                     messages,
                     task_file_path=task_file_path,
+                    memo_base_dir=MEMO_BASE_DIR,
+                    project_name=project,
                     min_turns=memo_config['min_turns'],
                     tags=memo_config['tags_str'],
                 )
