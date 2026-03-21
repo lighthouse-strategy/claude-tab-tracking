@@ -37,4 +37,39 @@ fi
 # Also clean up task files older than 7 days
 find "$TASKS_DIR" -name "*.txt" -mtime +7 -delete 2>/dev/null
 
+# --- Memo overview ---
+MEMO_DIR="$HOME/.claude/memos"
+if [ -d "$MEMO_DIR" ]; then
+  OVERVIEW=""
+  for proj_dir in "$MEMO_DIR"/*/; do
+    [ -d "$proj_dir" ] || continue
+    proj_name=$(basename "$proj_dir")
+    [ "$proj_name" = "_archive" ] && continue
+
+    latest=""
+    for memo_file in $(ls -t "$proj_dir"*.md 2>/dev/null | head -2); do
+      fname=$(basename "$memo_file" .md)
+      count=$(grep -c '^## ' "$memo_file" 2>/dev/null || echo 0)
+      if [ "$count" -gt 0 ]; then
+        if [ -z "$latest" ]; then
+          latest="$fname ${count}"
+        else
+          latest="$latest | $fname ${count}"
+        fi
+      fi
+    done
+
+    if [ -n "$latest" ]; then
+      OVERVIEW="$OVERVIEW  $proj_name  $latest
+"
+    fi
+  done
+
+  if [ -n "$OVERVIEW" ]; then
+    echo "[memo] Recent projects:"
+    printf '%s' "$OVERVIEW" | head -5
+    echo "Type /recall for details"
+  fi
+fi
+
 exit 0
