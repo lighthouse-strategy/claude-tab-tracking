@@ -532,3 +532,33 @@ def test_resolve_project_name_home():
     home = str(pathlib.Path.home())
     name = resolve_project_name(home)
     assert name == 'general'
+
+
+# ---------------------------------------------------------------------------
+# Tests for load_memo_config
+# ---------------------------------------------------------------------------
+
+from dynamic_task_update import load_memo_config
+
+
+def test_load_config_defaults(tmp_path):
+    config = load_memo_config(str(tmp_path / 'nonexistent.yaml'))
+    assert config['min_turns'] == 3
+    assert config['archive_days'] == 90
+    assert '决策' in config['tags_str']
+
+
+def test_load_config_custom(tmp_path):
+    config_file = tmp_path / 'config.yaml'
+    config_file.write_text('tags:\n  - 决策\n  - 风险\nmin_turns: 5\narchive_days: 30\n')
+    config = load_memo_config(str(config_file))
+    assert config['min_turns'] == 5
+    assert config['archive_days'] == 30
+    assert '风险' in config['tags_str']
+
+
+def test_load_config_invalid_yaml(tmp_path):
+    config_file = tmp_path / 'config.yaml'
+    config_file.write_text('not: valid: yaml: [broken')
+    config = load_memo_config(str(config_file))
+    assert config['min_turns'] == 3  # defaults

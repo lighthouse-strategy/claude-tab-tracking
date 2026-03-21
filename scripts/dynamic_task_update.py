@@ -22,6 +22,57 @@ from datetime import datetime
 
 
 MEMO_BASE_DIR = os.path.join(str(pathlib.Path.home()), '.claude', 'memos')
+MEMO_CONFIG_PATH = os.path.join(MEMO_BASE_DIR, 'config.yaml')
+
+DEFAULT_CONFIG = {
+    'tags': ['决策', '数据', '结论', 'TODO'],
+    'min_turns': 3,
+    'archive_days': 90,
+}
+
+
+# ---------------------------------------------------------------------------
+# Config loading
+# ---------------------------------------------------------------------------
+
+def load_memo_config(config_path=None):
+    """Load memo config from YAML file. Returns dict with defaults for missing keys."""
+    if config_path is None:
+        config_path = MEMO_CONFIG_PATH
+    config = dict(DEFAULT_CONFIG)
+    config['tags_str'] = ''.join(f'【{t}】' for t in config['tags'])
+    if not os.path.exists(config_path):
+        return config
+    try:
+        with open(config_path, 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+        current_key = None
+        tags = []
+        for line in lines:
+            stripped = line.strip()
+            if not stripped or stripped.startswith('#'):
+                continue
+            if stripped == 'tags:':
+                current_key = 'tags'
+                continue
+            if current_key == 'tags' and stripped.startswith('- '):
+                tags.append(stripped[2:].strip())
+                continue
+            else:
+                current_key = None
+            if ':' in stripped:
+                key, val = stripped.split(':', 1)
+                key, val = key.strip(), val.strip()
+                if key == 'min_turns' and val.isdigit():
+                    config['min_turns'] = int(val)
+                elif key == 'archive_days' and val.isdigit():
+                    config['archive_days'] = int(val)
+        if tags:
+            config['tags'] = tags
+        config['tags_str'] = ''.join(f'【{t}】' for t in config['tags'])
+    except Exception:
+        pass
+    return config
 
 
 # ---------------------------------------------------------------------------
@@ -196,7 +247,7 @@ def parse_llm_response(response):
 CLAUDE_CLI_TIMEOUT = 60
 
 
-def claude_cli_summarize(messages, task_file_path=None):
+def claude_cli_summarize(messages, task_file_path=None, min_turns=3, tags=None):
     """Call claude CLI in print mode, asynchronously.
 
     Because ``claude -p`` has ~30s startup overhead, this backend spawns the
@@ -206,7 +257,7 @@ def claude_cli_summarize(messages, task_file_path=None):
     synchronous writing.  When *task_file_path* is ``None`` (unit tests), it
     falls back to a blocking call.
     """
-    user_content = build_user_prompt(messages)
+    user_content = build_user_prompt(messages, min_turns=min_turns, tags=tags)
     prompt = f"{SYSTEM_PROMPT}\n\n{user_content}"
 
     if task_file_path is None:
@@ -258,13 +309,13 @@ CLAUDE_MODEL = 'claude-haiku-4-5-20251001'
 CLAUDE_TIMEOUT = 10
 
 
-def claude_summarize(messages):
+def claude_summarize(messages, min_turns=3, tags=None):
     """Call Claude Haiku via Anthropic API. Raises if ANTHROPIC_API_KEY not set."""
     api_key = os.environ.get('ANTHROPIC_API_KEY', '').strip()
     if not api_key:
         raise EnvironmentError('ANTHROPIC_API_KEY not set')
 
-    user_content = build_user_prompt(messages)
+    user_content = build_user_prompt(messages, min_turns=min_turns, tags=tags)
 
     payload = json.dumps({
         'model': CLAUDE_MODEL,
@@ -316,10 +367,10 @@ def _get_ollama_model():
     return models[0]  # fall back to whatever is installed
 
 
-def ollama_summarize(messages):
+def ollama_summarize(messages, min_turns=3, tags=None):
     """Call local Ollama. Raises if Ollama is not running or has no models."""
     model = _get_ollama_model()
-    user_content = build_user_prompt(messages)
+    user_content = build_user_prompt(messages, min_turns=min_turns, tags=tags)
 
     payload = json.dumps({
         'model': model,
@@ -486,6 +537,8 @@ def main():
     if not messages:
         sys.exit(0)
 
+    memo_config = load_memo_config()
+
     boundary = detect_task_boundary(messages)
     if boundary > 0:
         messages = messages[boundary:]
@@ -497,13 +550,22 @@ def main():
     for backend in _get_backend_chain():
         try:
             if backend is claude_cli_summarize:
-                result = backend(messages, task_file_path=task_file_path)
+                result = backend(
+                    messages,
+                    task_file_path=task_file_path,
+                    min_turns=memo_config['min_turns'],
+                    tags=memo_config['tags_str'],
+                )
                 if result is None:
                     # CLI backend launched async — it will write the file itself
                     sys.exit(0)
                 task_desc, is_done, memo_content = result
             else:
-                task_desc, is_done, memo_content = backend(messages)
+                task_desc, is_done, memo_content = backend(
+                    messages,
+                    min_turns=memo_config['min_turns'],
+                    tags=memo_config['tags_str'],
+                )
             if task_desc:
                 break
         except Exception:
