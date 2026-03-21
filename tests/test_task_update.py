@@ -472,3 +472,63 @@ def test_claude_cli_summarize_failure(monkeypatch):
     import pytest
     with pytest.raises(RuntimeError):
         claude_cli_summarize(msgs)
+
+
+# ---------------------------------------------------------------------------
+# Tests for memo file writing
+# ---------------------------------------------------------------------------
+
+from dynamic_task_update import write_memo, resolve_project_name, sanitize_project_name
+from datetime import datetime
+
+
+def test_sanitize_project_name():
+    assert sanitize_project_name('my-project') == 'my-project'
+    assert sanitize_project_name('My Project 2') == 'my-project-2'
+    assert sanitize_project_name('a' * 60) == 'a' * 50
+    assert sanitize_project_name('proj@#$name') == 'proj---name'
+
+
+def test_write_memo_creates_file(tmp_path):
+    memo_dir = tmp_path / "memos"
+    write_memo(
+        memo_content='【决策】改用 JWT | 【数据】影响 3 个 endpoint',
+        task_desc='修复登录页验证',
+        project_name='test-project',
+        memo_base_dir=str(memo_dir),
+    )
+    today = datetime.now().strftime('%Y-%m-%d')
+    memo_file = memo_dir / 'test-project' / f'{today}.md'
+    assert memo_file.exists()
+    content = memo_file.read_text()
+    assert f'# {today}' in content
+    assert '修复登录页验证' in content
+    assert '【决策】改用 JWT' in content
+    assert '【数据】影响 3 个 endpoint' in content
+
+
+def test_write_memo_appends(tmp_path):
+    memo_dir = tmp_path / "memos"
+    write_memo('【决策】第一条', '任务A', 'proj', str(memo_dir))
+    write_memo('【数据】第二条', '任务B', 'proj', str(memo_dir))
+    today = datetime.now().strftime('%Y-%m-%d')
+    content = (memo_dir / 'proj' / f'{today}.md').read_text()
+    assert '任务A' in content
+    assert '任务B' in content
+
+
+def test_write_memo_skips_empty():
+    write_memo('', '任务', 'proj', '/tmp/nonexistent-memo-dir-test')
+    # Should not create any file or raise
+
+
+def test_resolve_project_name_fallback():
+    name = resolve_project_name('/tmp')
+    assert name == 'general'
+
+
+def test_resolve_project_name_home():
+    import pathlib
+    home = str(pathlib.Path.home())
+    name = resolve_project_name(home)
+    assert name == 'general'

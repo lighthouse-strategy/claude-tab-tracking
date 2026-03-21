@@ -13,10 +13,15 @@ Updates task file with WIP:description or DONE:description.
 """
 import json
 import os
+import pathlib
 import re
 import subprocess
 import sys
 import urllib.request
+from datetime import datetime
+
+
+MEMO_BASE_DIR = os.path.join(str(pathlib.Path.home()), '.claude', 'memos')
 
 
 # ---------------------------------------------------------------------------
@@ -414,6 +419,61 @@ def _get_backend_chain():
 
 
 # ---------------------------------------------------------------------------
+# Memo file helpers
+# ---------------------------------------------------------------------------
+
+def sanitize_project_name(name):
+    """Sanitize project name for filesystem use."""
+    name = re.sub(r'[^a-zA-Z0-9_-]', '-', name).lower()
+    return name[:50]
+
+
+def resolve_project_name(cwd):
+    """Determine project name from working directory."""
+    home = str(pathlib.Path.home())
+    real_cwd = os.path.realpath(cwd)
+    if real_cwd == os.path.realpath(home) or real_cwd.startswith(('/tmp', '/private/tmp', '/var')):
+        return 'general'
+    try:
+        result = subprocess.run(
+            ['git', '-C', cwd, 'rev-parse', '--show-toplevel'],
+            capture_output=True, text=True, timeout=3,
+        )
+        if result.returncode == 0:
+            return sanitize_project_name(os.path.basename(result.stdout.strip()))
+    except Exception:
+        pass
+    return sanitize_project_name(os.path.basename(cwd))
+
+
+def write_memo(memo_content, task_desc, project_name, memo_base_dir=None):
+    """Append a memo entry to the project's daily memo file."""
+    if not memo_content:
+        return
+    if memo_base_dir is None:
+        memo_base_dir = MEMO_BASE_DIR
+    today = datetime.now().strftime('%Y-%m-%d')
+    time_str = datetime.now().strftime('%H:%M')
+    project_dir = os.path.join(memo_base_dir, project_name)
+    os.makedirs(project_dir, exist_ok=True)
+    memo_file = os.path.join(project_dir, f'{today}.md')
+
+    items = [item.strip() for item in memo_content.split('|') if item.strip()]
+    entry_lines = [f'\n## {time_str} | {task_desc}']
+    for item in items:
+        entry_lines.append(f'- {item}')
+    entry_lines.append('')
+
+    if not os.path.exists(memo_file):
+        with open(memo_file, 'w', encoding='utf-8') as f:
+            f.write(f'# {today}\n')
+            f.write('\n'.join(entry_lines))
+    else:
+        with open(memo_file, 'a', encoding='utf-8') as f:
+            f.write('\n'.join(entry_lines))
+
+
+# ---------------------------------------------------------------------------
 # Main — try each backend in priority order
 # ---------------------------------------------------------------------------
 
@@ -470,6 +530,11 @@ def main():
         f.write(f"{prefix}:{task_desc}\n")
         if prev_line:
             f.write(f"{prev_line}\n")
+
+    if memo_content:
+        cwd = os.environ.get('PWD', os.getcwd())
+        project = resolve_project_name(cwd)
+        write_memo(memo_content, task_desc, project)
 
 
 if __name__ == '__main__':
