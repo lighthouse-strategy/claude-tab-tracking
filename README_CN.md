@@ -177,9 +177,29 @@ rm -rf ~/.claude/memos/
 
 然后从 `~/.claude/settings.json` 的 `hooks` 中删除 `SessionStart`、`Stop`、`TaskCompleted`、`SessionEnd` 条目，并删除 `statusLine` 键。
 
+## 更新日志
+
+### 2026-03-22
+
+- **修复：CLI 后端死循环** — 子进程 `claude -p` 现在使用 `disableAllHooks` + 环境变量双重防护，防止 Stop hook 递归调用。感谢 [@GP2P](https://github.com/GP2P) 提交 PR #3。
+- **修复：读取临时文件失败时崩溃** — `cli_background.py` 不再因读取失败抛出 `UnboundLocalError`。
+- **修复：安装时 settings.json 格式错误** — 现在显示清晰的错误提示，而非 Python 报错。
+- **修复：项目路径含空格时 memo 概览出错** — `session_start.sh` 不再错误地分割路径。
+- **修复：`/task` 命令丢失上一个任务记录** — 手动设置任务时现在保留 PREV 行。
+- **修复：memo 归档时单目录出错导致全部跳过** — 增加了逐目录的错误处理。
+- **修复：任务文件竞争写入** — 使用文件锁防止并发后台进程损坏任务状态。
+- **修复：Linux 兼容性** — 当 `/usr/bin/python3` 不存在时自动回退到 PATH 中的 `python3`。
+
+### 2026-03-21
+
+- **新增：对话记忆** — 自动从对话中提取决策、结论和待办事项，按项目和日期保存为结构化备忘录。
+- **新增：`/recall` 命令** — 交互式加载历史备忘录到当前会话上下文。
+- **新增：`/memo` 命令** — 浏览和搜索备忘录。
+- **新增：会话启动 memo 提示** — 启动时显示最近项目的备忘录数量。
+
 ## 作者
 
-由 [lh-strategy](https://github.com/lh-strategy) 构建
+由 [lighthouse-strategy](https://github.com/lighthouse-strategy) 构建
 
 ## 许可证
 

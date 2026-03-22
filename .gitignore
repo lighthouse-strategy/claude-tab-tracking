@@ -3,3 +3,9 @@
 __pycache__/
 .pytest_cache/
 firebase-debug.log
+node_modules/
+*.webm
+*.mp4
+record-video.js
+package.json
+package-lock.json

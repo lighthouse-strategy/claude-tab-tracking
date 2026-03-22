@@ -179,9 +179,29 @@ rm -rf ~/.claude/memos/
 
 Then remove the `SessionStart`, `Stop`, `TaskCompleted`, `SessionEnd` entries from the `hooks` section of `~/.claude/settings.json`, and remove the `statusLine` key.
 
+## Changelog
+
+### 2026-03-22
+
+- **Fix: CLI backend infinite loop** — Child `claude -p` sessions now run with `disableAllHooks` + env-var guard to prevent recursive Stop-hook execution. Thanks to [@GP2P](https://github.com/GP2P) for PR #3.
+- **Fix: crash on prompt file read failure** — `cli_background.py` no longer throws `UnboundLocalError` when the temp prompt file can't be read.
+- **Fix: installer error on malformed settings.json** — Now shows a clear error message instead of a Python traceback.
+- **Fix: memo overview breaks on paths with spaces** — `session_start.sh` no longer word-splits project directory paths.
+- **Fix: `/task` command drops previous task history** — PREV line is now preserved when manually setting a task.
+- **Fix: memo archival skips all projects on single directory error** — Per-directory error handling added.
+- **Fix: task file race condition** — File locking prevents concurrent background processes from corrupting task state.
+- **Fix: Linux compatibility** — Falls back to PATH `python3` when `/usr/bin/python3` doesn't exist.
+
+### 2026-03-21
+
+- **New: Conversation memory** — Automatically extracts decisions, conclusions, and TODOs from conversations. Saved as structured memos organized by project and date.
+- **New: `/recall` command** — Interactively load past memos into current session context.
+- **New: `/memo` command** — Browse and search memos without loading them.
+- **New: Session start memo hint** — Shows recent project memo counts on session start.
+
 ## Author
 
-Built by [lh-strategy](https://github.com/lh-strategy)
+Built by [lighthouse-strategy](https://github.com/lighthouse-strategy)
 
 ## License
 

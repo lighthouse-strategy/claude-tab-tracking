@@ -124,22 +124,35 @@ def main():
 
     prefix = 'DONE' if is_done else 'WIP'
 
-    # Preserve existing PREV line
-    prev = None
-    if os.path.exists(task_file_path):
-        with open(task_file_path, 'r', encoding='utf-8') as f:
-            for line in f:
-                if line.startswith('PREV:'):
-                    prev = line.strip()
-                    break
+    # Preserve existing PREV line, use file lock to prevent race conditions
+    import fcntl
 
     dirpart = os.path.dirname(task_file_path)
     if dirpart:
         os.makedirs(dirpart, exist_ok=True)
-    with open(task_file_path, 'w', encoding='utf-8') as f:
-        f.write(f"{prefix}:{task}\n")
-        if prev:
-            f.write(f"{prev}\n")
+
+    lock_path = task_file_path + '.lock'
+    with open(lock_path, 'w') as lock_f:
+        try:
+            fcntl.flock(lock_f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            # Another process holds the lock, skip this write
+            sys.exit(0)
+
+        prev = None
+        if os.path.exists(task_file_path):
+            with open(task_file_path, 'r', encoding='utf-8') as f:
+                for line in f:
+                    if line.startswith('PREV:'):
+                        prev = line.strip()
+                        break
+
+        with open(task_file_path, 'w', encoding='utf-8') as f:
+            f.write(f"{prefix}:{task}\n")
+            if prev:
+                f.write(f"{prev}\n")
+
+        fcntl.flock(lock_f, fcntl.LOCK_UN)
 
     # Write memo file if memo content present and memo args provided
     if memo and memo_base_dir and project_name:
