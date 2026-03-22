@@ -24,6 +24,10 @@ import urllib.request
 from datetime import datetime
 
 
+# Prevent recursion from CLI backend subprocess
+if os.environ.get('CLAUDE_TAB_SKIP_HOOK') == '1':
+    sys.exit(0)
+
 MEMO_BASE_DIR = os.path.join(str(pathlib.Path.home()), '.claude', 'memos')
 MEMO_CONFIG_PATH = os.path.join(MEMO_BASE_DIR, 'config.yaml')
 
@@ -298,12 +302,15 @@ def _launch_cli_background(prompt, task_file_path, memo_base_dir=None, project_n
     if memo_base_dir and project_name:
         args.extend([memo_base_dir, project_name])
 
+    env = os.environ.copy()
+    env['CLAUDE_TAB_SKIP_HOOK'] = '1'
     subprocess.Popen(
         args,
         stdin=subprocess.DEVNULL,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
         start_new_session=True,
+        env=env,
     )
 
 

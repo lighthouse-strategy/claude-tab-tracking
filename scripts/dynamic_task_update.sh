@@ -9,6 +9,11 @@ if [ "$STOP_ACTIVE" = "true" ]; then
   exit 0
 fi
 
+# Prevent recursion from CLI backend subprocess
+if [ "${CLAUDE_TAB_SKIP_HOOK:-0}" = "1" ]; then
+  exit 0
+fi
+
 SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // empty')
 TRANSCRIPT=$(echo "$INPUT" | jq -r '.transcript_path // empty')
 
