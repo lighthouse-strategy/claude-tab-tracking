@@ -91,6 +91,48 @@ cd claude-tab-tracking && ./install.sh
 
 Open a new Claude Code session — the statusline appears immediately.
 
+## Conversation memory
+
+The plugin automatically extracts key decisions, conclusions, and TODOs from each conversation and saves them as structured memos.
+
+### How it works
+
+After each assistant response (when the conversation has 3+ turns), the plugin extracts tagged items:
+
+- **Decisions** — architectural and design choices made
+- **Data** — facts, statistics, findings
+- **Conclusions** — root cause analysis, outcomes
+- **TODOs** — action items for follow-up
+
+Memos are saved to `~/.claude/memos/{project}/{YYYY-MM-DD}.md`, organized by project and date.
+
+### Recalling past context
+
+Use `/recall` to load memos from previous sessions:
+
+```
+/recall              # list recent projects, pick one interactively
+/recall my-project   # skip to date selection for a specific project
+/recall 3-20         # load all memos from that date
+```
+
+On session start, the plugin shows a hint if memos exist:
+```
+[memo] Recent projects: my-app (today, 3 entries) | api-server (3-20, 5 entries)
+Type /recall for details
+```
+
+### Viewing memos
+
+Use `/memo` to browse memos without loading them into context:
+
+```
+/memo                # show today's memos
+/memo 3-20           # show memos from a specific date
+/memo my-project     # list recent memo files for a project
+/memo keyword        # search across all memos
+```
+
 ## Manual task override
 
 Use the `/task` slash command to set a custom description for the current session:
@@ -113,7 +155,10 @@ This writes a `MANUAL:` prefix that pins the description and stops auto-updates 
 | `~/.claude/scripts/session_statusline.sh` | Statusline renderer |
 | `~/.claude/scripts/session_end.sh` | SessionEnd cleanup |
 | `~/.claude/commands/task.md` | `/task` slash command |
+| `~/.claude/commands/memo.md` | `/memo` slash command |
+| `~/.claude/commands/recall.md` | `/recall` slash command |
 | `~/.claude/session-tasks/` | Session state (auto-cleaned after 7 days) |
+| `~/.claude/memos/` | Conversation memos (organized by project/date) |
 
 ## Uninstall
 
@@ -125,8 +170,11 @@ rm -f ~/.claude/scripts/session_start.sh \
       ~/.claude/scripts/task_completed.sh \
       ~/.claude/scripts/session_statusline.sh \
       ~/.claude/scripts/session_end.sh \
-      ~/.claude/commands/task.md
+      ~/.claude/commands/task.md \
+      ~/.claude/commands/memo.md \
+      ~/.claude/commands/recall.md
 rm -rf ~/.claude/session-tasks/
+rm -rf ~/.claude/memos/
 ```
 
 Then remove the `SessionStart`, `Stop`, `TaskCompleted`, `SessionEnd` entries from the `hooks` section of `~/.claude/settings.json`, and remove the `statusLine` key.

@@ -89,6 +89,48 @@ cd claude-tab-tracking && ./install.sh
 
 打开新的 Claude Code 会话，状态栏立即生效。
 
+## 对话记忆
+
+插件会自动从每次对话中提取关键信息，保存为结构化备忘录。
+
+### 工作原理
+
+每次助手回复后（对话超过 3 轮时），插件自动提取带标签的内容：
+
+- **决策** — 架构和设计选择
+- **数据** — 事实、统计、发现
+- **结论** — 原因分析、结果
+- **待办** — 后续行动项
+
+备忘录保存在 `~/.claude/memos/{项目名}/{YYYY-MM-DD}.md`，按项目和日期归类。
+
+### 恢复上下文
+
+使用 `/recall` 加载历史备忘录：
+
+```
+/recall              # 列出最近项目，交互选择
+/recall my-project   # 直接跳到某个项目的日期选择
+/recall 3-20         # 加载指定日期的所有备忘录
+```
+
+启动会话时，插件会提示是否有历史记录：
+```
+[memo] 最近项目: my-app (今天, 3条) | api-server (3-20, 5条)
+输入 /recall 查看详情
+```
+
+### 查看备忘录
+
+使用 `/memo` 浏览备忘录（不加载到上下文）：
+
+```
+/memo                # 查看今天的备忘录
+/memo 3-20           # 查看指定日期的备忘录
+/memo my-project     # 列出某项目最近的备忘录文件
+/memo keyword        # 跨所有备忘录搜索关键词
+```
+
 ## 手动设置任务
 
 使用 `/task` 命令为当前会话设置自定义描述：
@@ -111,7 +153,10 @@ cd claude-tab-tracking && ./install.sh
 | `~/.claude/scripts/session_statusline.sh` | 状态栏渲染 |
 | `~/.claude/scripts/session_end.sh` | SessionEnd 清理 |
 | `~/.claude/commands/task.md` | `/task` 命令 |
+| `~/.claude/commands/memo.md` | `/memo` 命令 |
+| `~/.claude/commands/recall.md` | `/recall` 命令 |
 | `~/.claude/session-tasks/` | 会话状态（7 天后自动清理） |
+| `~/.claude/memos/` | 对话备忘录（按项目/日期归类） |
 
 ## 卸载
 
@@ -123,8 +168,11 @@ rm -f ~/.claude/scripts/session_start.sh \
       ~/.claude/scripts/task_completed.sh \
       ~/.claude/scripts/session_statusline.sh \
       ~/.claude/scripts/session_end.sh \
-      ~/.claude/commands/task.md
+      ~/.claude/commands/task.md \
+      ~/.claude/commands/memo.md \
+      ~/.claude/commands/recall.md
 rm -rf ~/.claude/session-tasks/
+rm -rf ~/.claude/memos/
 ```
 
 然后从 `~/.claude/settings.json` 的 `hooks` 中删除 `SessionStart`、`Stop`、`TaskCompleted`、`SessionEnd` 条目，并删除 `statusLine` 键。
