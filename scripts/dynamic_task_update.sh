@@ -44,7 +44,10 @@ fi
 
 mkdir -p "$TASKS_DIR"
 
-# Call the Python helper script (use system python3, not uv shim)
-/usr/bin/python3 "$HOME/.claude/scripts/dynamic_task_update.py" "$TRANSCRIPT" "$TASK_FILE"
+# Call the Python helper script
+PYTHON3="/usr/bin/python3"
+[ -x "$PYTHON3" ] || PYTHON3=$(command -v python3 2>/dev/null || true)
+[ -z "$PYTHON3" ] && exit 0
+"$PYTHON3" "$HOME/.claude/scripts/dynamic_task_update.py" "$TRANSCRIPT" "$TASK_FILE"
 
 exit 0

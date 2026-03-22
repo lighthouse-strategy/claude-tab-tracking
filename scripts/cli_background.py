@@ -92,8 +92,14 @@ def main():
     try:
         with open(prompt_path, 'r', encoding='utf-8') as f:
             prompt = f.read()
-    finally:
-        # Clean up temp prompt file
+    except Exception:
+        logging.exception("Failed to read prompt file %s", prompt_path)
+        try:
+            os.unlink(prompt_path)
+        except OSError:
+            logging.exception("Failed to delete temp prompt file %s", prompt_path)
+        sys.exit(1)
+    else:
         try:
             os.unlink(prompt_path)
         except OSError:

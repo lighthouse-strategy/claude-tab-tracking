@@ -554,7 +554,12 @@ def archive_old_memos(memo_base_dir=None, archive_days=90):
         proj_dir = os.path.join(memo_base_dir, entry)
         if not os.path.isdir(proj_dir) or entry.startswith('_') or entry == 'config.yaml':
             continue
-        for fname in os.listdir(proj_dir):
+        try:
+            fnames = os.listdir(proj_dir)
+        except OSError:
+            logging.exception("Cannot list memo directory %s", proj_dir)
+            continue
+        for fname in fnames:
             if not fname.endswith('.md'):
                 continue
             fpath = os.path.join(proj_dir, fname)

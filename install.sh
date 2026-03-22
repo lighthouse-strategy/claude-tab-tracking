@@ -44,8 +44,13 @@ cp "$SETTINGS" "${SETTINGS}.bak-$(date +%Y%m%d%H%M%S)"
 import json, sys
 
 path = sys.argv[1]
-with open(path) as f:
-    d = json.load(f)
+try:
+    with open(path) as f:
+        d = json.load(f)
+except json.JSONDecodeError as e:
+    print(f"Error: {path} is not valid JSON: {e}", file=sys.stderr)
+    print("Please fix or delete it and re-run install.sh", file=sys.stderr)
+    sys.exit(1)
 
 hooks = d.setdefault("hooks", {})
 

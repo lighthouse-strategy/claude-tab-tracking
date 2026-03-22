@@ -47,7 +47,8 @@ if [ -d "$MEMO_DIR" ]; then
     [ "$proj_name" = "_archive" ] && continue
 
     latest=""
-    for memo_file in $(ls -t "$proj_dir"*.md 2>/dev/null | head -2); do
+    while IFS= read -r memo_file; do
+      [ -z "$memo_file" ] && continue
       fname=$(basename "$memo_file" .md)
       count=$(grep -c '^## ' "$memo_file" 2>/dev/null || echo 0)
       if [ "$count" -gt 0 ]; then
@@ -57,7 +58,7 @@ if [ -d "$MEMO_DIR" ]; then
           latest="$latest | $fname ${count}"
         fi
       fi
-    done
+    done < <(ls -t "$proj_dir"*.md 2>/dev/null | head -2)
 
     if [ -n "$latest" ]; then
       OVERVIEW="$OVERVIEW  $proj_name  $latest
