@@ -23,6 +23,8 @@ import time
 import urllib.request
 from datetime import datetime
 
+from claude_cli_common import build_claude_cli_cmd
+
 
 MEMO_BASE_DIR = os.path.join(str(pathlib.Path.home()), '.claude', 'memos')
 MEMO_CONFIG_PATH = os.path.join(MEMO_BASE_DIR, 'config.yaml')
@@ -266,7 +268,7 @@ def claude_cli_summarize(messages, task_file_path=None, memo_base_dir=None, proj
     if task_file_path is None:
         # Synchronous path (for tests / direct invocation)
         result = subprocess.run(
-            ['claude', '-p', '--model', 'haiku'],
+            build_claude_cli_cmd(),
             input=prompt,
             capture_output=True, text=True,
             timeout=CLAUDE_CLI_TIMEOUT,

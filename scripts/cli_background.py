@@ -13,6 +13,8 @@ import subprocess
 import sys
 from datetime import datetime
 
+from claude_cli_common import build_claude_cli_cmd
+
 logging.basicConfig(level=logging.WARNING, format='%(levelname)s: %(message)s')
 
 TIMEOUT = 60
@@ -98,7 +100,7 @@ def main():
             logging.exception("Failed to delete temp prompt file %s", prompt_path)
 
     result = subprocess.run(
-        ['claude', '-p', '--model', 'haiku'],
+        build_claude_cli_cmd(),
         input=prompt,
         capture_output=True, text=True,
         timeout=TIMEOUT,
