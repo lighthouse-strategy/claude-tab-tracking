@@ -40,7 +40,13 @@ fi
 cp "$SETTINGS" "${SETTINGS}.bak-$(date +%Y%m%d%H%M%S)"
 
 # Merge new config using Python (avoids jq for complex nested merges)
-/usr/bin/python3 - "$SETTINGS" << 'PYEOF'
+PYTHON3="/usr/bin/python3"
+[ -x "$PYTHON3" ] || PYTHON3=$(command -v python3 2>/dev/null || true)
+if [ -z "$PYTHON3" ]; then
+  echo "Error: python3 is required but not found."
+  exit 1
+fi
+"$PYTHON3" - "$SETTINGS" << 'PYEOF'
 import json, sys
 
 path = sys.argv[1]
