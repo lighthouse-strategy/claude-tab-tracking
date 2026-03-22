@@ -1,0 +1,191 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 480" font-family="'JetBrains Mono','SF Mono','Cascadia Code','Fira Code',monospace">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1a1a2e"/>
+      <stop offset="100%" stop-color="#16162a"/>
+    </linearGradient>
+  </defs>
+  <style>
+    .outer { fill: url(#bg); }
+    .win { fill: #1e1e2e; }
+    .titlebar { fill: #181825; }
+    .dot-r { fill: #f38ba8; } .dot-y { fill: #f9e2af; } .dot-g { fill: #a6e3a1; }
+    .tab { fill: #6c7086; font-size: 11px; }
+    .prompt { fill: #89b4fa; font-size: 13px; }
+    .txt { fill: #cdd6f4; font-size: 13px; }
+    .dim { fill: #585b70; font-size: 13px; }
+    .green { fill: #a6e3a1; font-size: 13px; }
+    .sl-bg { fill: #11111b; }
+    .sl { fill: #a6adc8; font-size: 12px; }
+    .sl-badge { font-size: 12px; font-weight: 700; }
+    .sl-ctx { fill: #a6e3a1; font-size: 12px; }
+    .sl-dim { fill: #585b70; font-size: 11px; }
+    .label { fill: #f9e2af; font-size: 14px; font-weight: 700; }
+    .sublabel { fill: #6c7086; font-size: 11px; }
+    .cursor { fill: #cdd6f4; }
+  </style>
+
+  <rect class="outer" width="760" height="480" rx="14"/>
+
+  <!-- Title -->
+  <text class="label" x="380" y="28" text-anchor="middle">claude-tab-tracking</text>
+  <text class="sublabel" x="380" y="44" text-anchor="middle">Live task tracking for Claude Code sessions</text>
+
+  <!-- ====== Terminal window ====== -->
+  <g transform="translate(30, 58)">
+    <rect class="win" width="700" height="370" rx="10"/>
+    <rect class="titlebar" width="700" height="28" rx="10"/>
+    <rect class="titlebar" y="20" width="700" height="8"/>
+    <circle class="dot-r" cx="16" cy="14" r="5"/>
+    <circle class="dot-y" cx="34" cy="14" r="5"/>
+    <circle class="dot-g" cx="52" cy="14" r="5"/>
+    <text class="tab" x="350" y="18" text-anchor="middle">claude — ~/my-project (main)</text>
+
+    <!-- ====== Phase 1: Session start (0s-3s) ====== -->
+    <g opacity="0">
+      <animate attributeName="opacity" values="0;0;1;1;1;0;0;0;0;0;0;0;0;0;0" dur="18s" repeatCount="indefinite"/>
+
+      <text class="dim" x="16" y="56">$ claude</text>
+      <text class="dim" x="16" y="78">Starting session...</text>
+      <text class="txt" x="16" y="110">Claude Code v1.0</text>
+      <text class="dim" x="16" y="132">Session initialized. What would you like to do?</text>
+
+      <!-- Blinking cursor -->
+      <g>
+        <text class="prompt" x="16" y="170">></text>
+        <rect class="cursor" x="28" y="158" width="8" height="16" rx="1">
+          <animate attributeName="opacity" values="1;1;0;0" dur="1s" repeatCount="indefinite"/>
+        </rect>
+      </g>
+
+      <!-- Statusline: [---] -->
+      <rect class="sl-bg" x="0" y="330" width="700" height="40" rx="0 0 10 10"/>
+      <text class="sl-badge" fill="#6c7086" x="14" y="354">[---]</text>
+      <text class="sl" x="56" y="354">~/my-project (main)</text>
+      <text class="sl" x="560" y="354">ctx</text>
+      <text class="sl-ctx" x="588" y="354">0%</text>
+    </g>
+
+    <!-- ====== Phase 2: User types + WIP (3s-8s) ====== -->
+    <g opacity="0">
+      <animate attributeName="opacity" values="0;0;0;0;1;1;1;1;1;0;0;0;0;0;0" dur="18s" repeatCount="indefinite"/>
+
+      <text class="dim" x="16" y="56">$ claude</text>
+      <text class="txt" x="16" y="78">Claude Code v1.0</text>
+
+      <text class="prompt" x="16" y="110">></text>
+      <text class="txt" x="28" y="110">Fix the authentication bug in login.py</text>
+
+      <text class="dim" x="16" y="144">I'll investigate the auth issue. Let me read the file...</text>
+      <text class="dim" x="16" y="168">Reading login.py...</text>
+      <text class="txt" x="16" y="192">Found the problem: token expiry check uses</text>
+      <text class="txt" x="16" y="210">UTC but the stored timestamp is in local time.</text>
+
+      <text class="dim" x="16" y="244">Editing login.py...</text>
+      <text class="green" x="16" y="268">+ expires_at = token.expires.astimezone(UTC)</text>
+
+      <!-- Statusline: [WIP] -->
+      <rect class="sl-bg" x="0" y="330" width="700" height="40" rx="0 0 10 10"/>
+      <text class="sl-badge" fill="#f9e2af" x="14" y="354">[WIP]</text>
+      <text class="sl" x="56" y="354">Fix auth bug in login.py</text>
+      <text class="sl" x="500" y="354">ctx</text>
+      <text class="sl-ctx" x="528" y="354">14%</text>
+      <text class="sl" x="564" y="354">8m</text>
+
+      <!-- Pulsing dot on WIP -->
+      <circle fill="#f9e2af" cx="606" cy="350" r="3">
+        <animate attributeName="opacity" values="1;0.3;1" dur="1.5s" repeatCount="indefinite"/>
+      </circle>
+    </g>
+
+    <!-- ====== Phase 3: Task done (8s-12s) ====== -->
+    <g opacity="0">
+      <animate attributeName="opacity" values="0;0;0;0;0;0;0;0;1;1;1;1;0;0;0" dur="18s" repeatCount="indefinite"/>
+
+      <text class="dim" x="16" y="56">$ claude</text>
+      <text class="prompt" x="16" y="78">></text>
+      <text class="txt" x="28" y="78">Fix the authentication bug in login.py</text>
+
+      <text class="dim" x="16" y="112">Editing login.py...</text>
+      <text class="green" x="16" y="136">+ expires_at = token.expires.astimezone(UTC)</text>
+
+      <text class="dim" x="16" y="170">Running tests...</text>
+      <text class="green" x="16" y="194">All 12 tests passed.</text>
+      <text class="txt" x="16" y="228">Fixed. The token expiry was comparing UTC</text>
+      <text class="txt" x="16" y="246">against local time. Now both use UTC.</text>
+
+      <!-- Statusline: [DONE] -->
+      <rect class="sl-bg" x="0" y="330" width="700" height="40" rx="0 0 10 10"/>
+      <text class="sl-badge" fill="#a6e3a1" x="14" y="354">[DONE]</text>
+      <text class="sl" x="62" y="354">Fix auth bug in login.py</text>
+      <text class="sl" x="500" y="354">ctx</text>
+      <text class="sl-ctx" x="528" y="354">22%</text>
+      <text class="sl" x="564" y="354">11m</text>
+    </g>
+
+    <!-- ====== Phase 4: New task starts (12s-18s) ====== -->
+    <g opacity="0">
+      <animate attributeName="opacity" values="0;0;0;0;0;0;0;0;0;0;0;0;1;1;1;1;1;0" dur="18s" repeatCount="indefinite"/>
+
+      <text class="prompt" x="16" y="56">></text>
+      <text class="txt" x="28" y="56">Now add unit tests for the auth module</text>
+
+      <text class="dim" x="16" y="90">I'll create comprehensive tests for the auth flow...</text>
+      <text class="dim" x="16" y="114">Creating test_auth.py...</text>
+      <text class="green" x="16" y="138">+ def test_token_expiry_utc():</text>
+      <text class="green" x="16" y="156">+     token = create_token(tz="US/Eastern")</text>
+      <text class="green" x="16" y="174">+     assert not token.is_expired()</text>
+
+      <text class="dim" x="16" y="210">Running tests...</text>
+      <text class="green" x="16" y="234">All 18 tests passed.</text>
+
+      <!-- Statusline: [WIP] new task + [DONE] old task -->
+      <rect class="sl-bg" x="0" y="316" width="700" height="54" rx="0 0 10 10"/>
+      <text class="sl-badge" fill="#f9e2af" x="14" y="340">[WIP]</text>
+      <text class="sl" x="56" y="340">Add unit tests for auth module</text>
+      <text class="sl" x="500" y="340">ctx</text>
+      <text class="sl-ctx" x="528" y="340">31%</text>
+      <text class="sl" x="564" y="340">16m</text>
+      <text class="sl-badge" fill="#585b70" x="14" y="360">[DONE]</text>
+      <text class="sl-dim" x="62" y="360">Fix auth bug in login.py</text>
+
+      <circle fill="#f9e2af" cx="606" cy="336" r="3">
+        <animate attributeName="opacity" values="1;0.3;1" dur="1.5s" repeatCount="indefinite"/>
+      </circle>
+    </g>
+  </g>
+
+  <!-- Phase indicator dots -->
+  <g transform="translate(340, 446)">
+    <circle cx="0" cy="0" r="4" fill="#585b70">
+      <animate attributeName="fill" values="#f9e2af;#f9e2af;#585b70;#585b70;#585b70;#585b70;#585b70;#585b70;#585b70;#585b70;#585b70;#585b70;#585b70;#585b70;#585b70" dur="18s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="20" cy="0" r="4" fill="#585b70">
+      <animate attributeName="fill" values="#585b70;#585b70;#585b70;#585b70;#f9e2af;#f9e2af;#f9e2af;#f9e2af;#585b70;#585b70;#585b70;#585b70;#585b70;#585b70;#585b70" dur="18s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="40" cy="0" r="4" fill="#585b70">
+      <animate attributeName="fill" values="#585b70;#585b70;#585b70;#585b70;#585b70;#585b70;#585b70;#585b70;#f9e2af;#f9e2af;#f9e2af;#f9e2af;#585b70;#585b70;#585b70" dur="18s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="60" cy="0" r="4" fill="#585b70">
+      <animate attributeName="fill" values="#585b70;#585b70;#585b70;#585b70;#585b70;#585b70;#585b70;#585b70;#585b70;#585b70;#585b70;#585b70;#f9e2af;#f9e2af;#585b70" dur="18s" repeatCount="indefinite"/>
+    </circle>
+  </g>
+
+  <!-- Phase labels -->
+  <g opacity="0">
+    <animate attributeName="opacity" values="0;0;1;1;1;0;0;0;0;0;0;0;0;0;0" dur="18s" repeatCount="indefinite"/>
+    <text class="sublabel" x="380" y="470" text-anchor="middle">Session starts -- statusline shows directory</text>
+  </g>
+  <g opacity="0">
+    <animate attributeName="opacity" values="0;0;0;0;1;1;1;1;1;0;0;0;0;0;0" dur="18s" repeatCount="indefinite"/>
+    <text class="sublabel" x="380" y="470" text-anchor="middle">Task auto-detected from conversation</text>
+  </g>
+  <g opacity="0">
+    <animate attributeName="opacity" values="0;0;0;0;0;0;0;0;1;1;1;1;0;0;0" dur="18s" repeatCount="indefinite"/>
+    <text class="sublabel" x="380" y="470" text-anchor="middle">Task completed -- marked as done</text>
+  </g>
+  <g opacity="0">
+    <animate attributeName="opacity" values="0;0;0;0;0;0;0;0;0;0;0;0;1;1;1;1;1;0" dur="18s" repeatCount="indefinite"/>
+    <text class="sublabel" x="380" y="470" text-anchor="middle">New task begins -- previous task preserved below</text>
+  </g>
+</svg>

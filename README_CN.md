@@ -4,7 +4,7 @@
 
 > 一眼掌握每个 Claude Code 会话的工作状态。
 
-![demo](assets/demo.gif)
+![demo](assets/demo.svg)
 
 为 [Claude Code](https://docs.anthropic.com/en/docs/claude-code) 提供实时任务追踪。自动显示每个会话正在做什么，并随对话进展实时更新。
 

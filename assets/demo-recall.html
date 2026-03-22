@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>claude-tab-tracking recall demo</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;500;600;700;900&family=Noto+Sans+SC:wght@400;500;600;700;900&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #ffffff;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  /* === Full-screen overlays === */
+  .overlay {
+    position: fixed;
+    inset: 0;
+    background: #ffffff;
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 100;
+    transition: opacity 0.6s;
+    padding: 40px;
+  }
+  .overlay.hide { opacity: 0; pointer-events: none; }
+
+  /* Intro */
+  .intro-title {
+    font-family: 'Noto Sans SC', sans-serif;
+    font-size: 38px;
+    font-weight: 900;
+    color: #1a1a2e;
+    margin-bottom: 8px;
+    opacity: 0;
+    transform: translateY(20px);
+    transition: opacity 0.6s, transform 0.6s;
+  }
+  .intro-title.show { opacity: 1; transform: translateY(0); }
+  .intro-title .hl { color: #d4860a; }
+
+  .intro-sub {
+    font-family: 'Noto Sans SC', sans-serif;
+    font-size: 20px;
+    font-weight: 500;
+    color: #555566;
+    text-align: center;
+    line-height: 1.6;
+    max-width: 500px;
+    margin-bottom: 24px;
+    opacity: 0;
+    transform: translateY(20px);
+    transition: opacity 0.6s 0.3s, transform 0.6s 0.3s;
+  }
+  .intro-sub.show { opacity: 1; transform: translateY(0); }
+
+  /* Structure diagram */
+  .structure {
+    width: 600px;
+    opacity: 0;
+    transform: translateY(20px);
+    transition: opacity 0.6s 0.5s, transform 0.6s 0.5s;
+  }
+  .structure.show { opacity: 1; transform: translateY(0); }
+
+  .struct-header {
+    font-family: 'Noto Sans SC', sans-serif;
+    font-size: 18px;
+    font-weight: 600;
+    color: #888899;
+    margin-bottom: 12px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .struct-root {
+    background: #f0f0f5;
+    border-radius: 12px;
+    padding: 10px 20px;
+    margin-bottom: 4px;
+  }
+  .struct-root-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 20px;
+    font-weight: 700;
+    color: #555566;
+  }
+
+  .struct-project {
+    margin-left: 24px;
+    border-left: 2px solid #d0d0d8;
+    padding-left: 16px;
+    margin-bottom: 0;
+    padding-top: 4px;
+    padding-bottom: 4px;
+    opacity: 0;
+    transform: translateX(-10px);
+    transition: opacity 0.4s, transform 0.4s;
+  }
+  .struct-project.show { opacity: 1; transform: translateX(0); }
+
+  .struct-project-name {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 20px;
+    font-weight: 700;
+    color: #d4860a;
+    margin-bottom: 4px;
+  }
+
+  .struct-entry {
+    font-family: 'Noto Sans SC', sans-serif;
+    font-size: 19px;
+    color: #888899;
+    line-height: 1.6;
+    padding-left: 8px;
+  }
+  .struct-entry .tag {
+    font-weight: 600;
+    color: #555566;
+  }
+
+  .struct-date {
+    margin-left: 48px;
+    border-left: 2px solid #e0e0e8;
+    padding-left: 12px;
+    margin-bottom: 0;
+    padding-top: 2px;
+    padding-bottom: 2px;
+    opacity: 0;
+    transform: translateX(-10px);
+    transition: opacity 0.4s, transform 0.4s;
+  }
+  .struct-date.show { opacity: 1; transform: translateX(0); }
+
+  .struct-date-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 19px;
+    color: #888899;
+  }
+
+  .struct-memo {
+    font-family: 'Noto Sans SC', sans-serif;
+    font-size: 18px;
+    color: #aaaabb;
+    padding-left: 8px;
+    line-height: 1.5;
+  }
+
+  .struct-flow {
+    margin-top: 16px;
+    opacity: 0;
+    transition: opacity 0.6s;
+  }
+  .struct-flow.show { opacity: 1; }
+  .struct-flow-text {
+    font-family: 'Noto Sans SC', sans-serif;
+    font-size: 20px;
+    color: #1a1a2e;
+    text-align: center;
+    background: #fff3d0;
+    padding: 12px 20px;
+    border-radius: 10px;
+    font-weight: 500;
+  }
+  .struct-flow-text .hl { color: #d4860a; font-weight: 600; }
+
+  /* Outro */
+  .outro-title {
+    font-family: 'Noto Sans SC', sans-serif;
+    font-size: 36px;
+    font-weight: 900;
+    color: #d4860a;
+    margin-bottom: 16px;
+    opacity: 0;
+    transform: translateY(20px);
+    transition: opacity 0.6s, transform 0.6s;
+  }
+  .outro-title.show { opacity: 1; transform: translateY(0); }
+  .outro-sub {
+    font-family: 'Noto Sans SC', sans-serif;
+    font-size: 20px;
+    font-weight: 500;
+    color: #1a1a2e;
+    margin-bottom: 32px;
+    opacity: 0;
+    transform: translateY(20px);
+    transition: opacity 0.6s 0.2s, transform 0.6s 0.2s;
+  }
+  .outro-sub.show { opacity: 1; transform: translateY(0); }
+  .outro-url {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 15px;
+    color: #555566;
+    background: #f0f0f5;
+    padding: 10px 24px;
+    border-radius: 8px;
+    opacity: 0;
+    transform: translateY(20px);
+    transition: opacity 0.6s 0.4s, transform 0.6s 0.4s;
+  }
+  .outro-url.show { opacity: 1; transform: translateY(0); }
+  .outro-author {
+    font-family: 'Noto Sans SC', sans-serif;
+    font-size: 15px;
+    color: #888899;
+    margin-top: 20px;
+    opacity: 0;
+    transition: opacity 0.6s 0.6s;
+  }
+  .outro-author.show { opacity: 1; }
+
+  /* === Terminal === */
+  .wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+  }
+
+  .subtitle-bar {
+    width: 620px;
+    background: #f0f0f5;
+    border-radius: 12px 12px 0 0;
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    min-height: 64px;
+  }
+  .subtitle-step {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    background: #d4860a;
+    color: #fff;
+    font-family: 'Inter', sans-serif;
+    font-weight: 700;
+    font-size: 16px;
+    flex-shrink: 0;
+    opacity: 0;
+    transform: scale(0.8);
+    transition: opacity 0.4s, transform 0.4s;
+  }
+  .subtitle-step.show { opacity: 1; transform: scale(1); }
+  .subtitle-text {
+    font-family: 'Noto Sans SC', sans-serif;
+    font-size: 18px;
+    font-weight: 500;
+    color: #1a1a2e;
+    opacity: 0;
+    transform: translateY(6px);
+    transition: opacity 0.4s, transform 0.4s;
+  }
+  .subtitle-text.show { opacity: 1; transform: translateY(0); }
+  .subtitle-hl { color: #d4860a; font-weight: 600; }
+
+  .terminal {
+    width: 620px;
+    background: #fafafa;
+    border-radius: 0 0 12px 12px;
+    overflow: hidden;
+    font-family: 'JetBrains Mono', 'SF Mono', monospace;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+  }
+  .titlebar {
+    background: #e8e8f0;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    padding: 0 14px;
+    position: relative;
+    border-top: 1px solid #d0d0d8;
+  }
+  .dots { display: flex; gap: 8px; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; }
+  .dot-r { background: #ff6b6b; }
+  .dot-y { background: #ffc857; }
+  .dot-g { background: #51cf66; }
+  .tab-title {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    color: #888899;
+    font-size: 12px;
+  }
+
+  .content {
+    padding: 20px 18px;
+    min-height: 380px;
+    position: relative;
+  }
+  .line {
+    font-size: 14px;
+    line-height: 1.8;
+    white-space: pre-wrap;
+    opacity: 0;
+    transform: translateY(4px);
+    transition: opacity 0.3s, transform 0.3s;
+  }
+  .line.show { opacity: 1; transform: translateY(0); }
+
+  .c-prompt { color: #4078c0; }
+  .c-txt { color: #2a2a3a; }
+  .c-dim { color: #999aaa; }
+  .c-green { color: #2d8a4e; }
+  .c-yellow { color: #b8860b; }
+  .c-red { color: #d33; }
+  .c-bold { color: #2a2a3a; font-weight: 700; }
+
+  .input-bar {
+    background: #e8e8f0;
+    border-top: 1px solid #d0d0d8;
+    border-bottom: 1px solid #d0d0d8;
+    padding: 8px 14px;
+    display: flex;
+    align-items: center;
+    min-height: 36px;
+  }
+  .input-bar-prompt { color: #888899; font-size: 14px; }
+  .input-bar-text { color: #2a2a3a; font-size: 14px; margin-left: 8px; }
+  .input-bar-cursor {
+    display: inline-block;
+    width: 7px; height: 15px;
+    background: #999aaa;
+    margin-left: 2px;
+    vertical-align: text-bottom;
+    animation: blink 1s step-end infinite;
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  .statusline {
+    background: #e0e0e8;
+    padding: 6px 14px 8px;
+    min-height: 48px;
+    border-radius: 0 0 12px 12px;
+    position: relative;
+  }
+  .sl-row {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 13px; opacity: 0; transition: opacity 0.4s; line-height: 1.5;
+  }
+  .sl-row.show { opacity: 1; }
+  .sl-row-meta {
+    display: flex; align-items: center; gap: 12px;
+    font-size: 12px; opacity: 0; transition: opacity 0.4s;
+    line-height: 1.4; padding-left: 2px; color: #888899;
+  }
+  .sl-row-meta.show { opacity: 1; }
+  .sl-row-meta .sl-ctx { color: #2d8a4e; }
+  .sl-row-meta .sl-separator { color: #bbbbcc; }
+
+  .badge { font-weight: 700; font-size: 13px; }
+  .badge-init { color: #888899; }
+  .badge-wip { color: #b8860b; }
+  .sl-desc { color: #555566; font-size: 13px; }
+</style>
+</head>
+<body>
+
+<!-- Intro overlay -->
+<div class="overlay" id="intro">
+  <div class="intro-title" id="introTitle">
+    一个插件，让 <span class="hl">Claude Code</span> 不再失忆
+  </div>
+  <div class="intro-sub" id="introSub">
+    自动记录每次对话的决策、进度、待办<br>
+    新窗口一键恢复，接着上次继续干
+  </div>
+  <div class="structure" id="introStruct">
+    <div class="struct-header">插件会自动按项目和日期整理你的对话记录</div>
+    <div class="struct-root">
+      <div class="struct-root-label">~/.claude/memos/</div>
+    </div>
+    <div class="struct-project" id="sp1">
+      <div class="struct-project-name">iOS 记账 App/</div>
+      <div style="font-size:16px;color:#999aaa;padding-left:8px;margin-bottom:4px" id="sp1note">每次对话自动提取关键信息，按日期归档</div>
+      <div class="struct-date" id="sd1">
+        <div class="struct-date-label">2026-03-20.md</div>
+        <div class="struct-memo">14:23 | 搭建首页 + 记账表单</div>
+        <div class="struct-memo" style="padding-left:16px">【决策】用 SwiftUI + Core Data</div>
+        <div class="struct-memo" style="padding-left:16px">【结论】分类选择器已完成</div>
+      </div>
+      <div class="struct-date" id="sd2">
+        <div class="struct-date-label">2026-03-21.md</div>
+        <div class="struct-memo">10:15 | 做月度报表图表</div>
+        <div class="struct-memo" style="padding-left:16px">【待办】饼图配色还没调</div>
+      </div>
+    </div>
+    <div class="struct-project" id="sp2">
+      <div class="struct-project-name">2D 小游戏/</div>
+      <div style="font-size:16px;color:#999aaa;padding-left:8px;margin-bottom:4px" id="sp2note">不同项目自动分开存储</div>
+      <div class="struct-date" id="sd3">
+        <div class="struct-date-label">2026-03-21.md</div>
+        <div class="struct-memo">16:00 | 实现碰撞检测</div>
+        <div class="struct-memo" style="padding-left:16px">【数据】60fps 下无卡顿</div>
+      </div>
+    </div>
+    <div class="struct-flow" id="introFlow">
+      <div class="struct-flow-text">
+        你只管正常聊，插件<span class="hl">自动记录</span>决策、数据、待办<br>
+        下次新窗口输入 <span class="hl">/recall</span> 即可恢复上下文
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Outro overlay -->
+<div class="overlay" id="outro">
+  <div class="outro-title" id="outroTitle">再也不怕聊完就忘</div>
+  <div class="outro-sub" id="outroSub">/recall 一键恢复上次的工作进度</div>
+  <div class="outro-url" id="outroUrl">GitHub 搜 lighthouse-strategy</div>
+  <div class="outro-author" id="outroAuthor">找到 claude-tab-tracking 下载安装</div>
+</div>
+
+<!-- Terminal -->
+<div class="wrapper">
+  <div class="subtitle-bar">
+    <div class="subtitle-step" id="subtitleStep"></div>
+    <div class="subtitle-text" id="subtitleText"></div>
+  </div>
+  <div class="terminal">
+    <div class="titlebar">
+      <div class="dots">
+        <div class="dot dot-r"></div>
+        <div class="dot dot-y"></div>
+        <div class="dot dot-g"></div>
+      </div>
+      <span class="tab-title">claude — ~/ios-budget-app (main)</span>
+    </div>
+    <div class="content" id="content"></div>
+    <div class="input-bar">
+      <span class="input-bar-prompt">></span>
+      <span class="input-bar-text" id="inputText"></span>
+      <span class="input-bar-cursor"></span>
+    </div>
+    <div class="statusline">
+      <div class="sl-row" id="sl-main"></div>
+      <div class="sl-row-meta" id="sl-meta"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const content = $('content');
+const slMain = $('sl-main');
+const slMeta = $('sl-meta');
+const inputText = $('inputText');
+const subtitleStep = $('subtitleStep');
+const subtitleText = $('subtitleText');
+
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text) e.textContent = text;
+  return e;
+}
+function clearEl(p) { while (p.firstChild) p.removeChild(p.firstChild); }
+function clearContent() { clearEl(content); }
+function wait(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+function addLine(segments, delay) {
+  return new Promise(resolve => {
+    setTimeout(() => {
+      const div = el('div', 'line');
+      segments.forEach(([cls, txt]) => div.appendChild(el('span', cls, txt)));
+      content.appendChild(div);
+      requestAnimationFrame(() => requestAnimationFrame(() => div.classList.add('show')));
+      resolve();
+    }, delay);
+  });
+}
+function addEmptyLine(delay) {
+  return new Promise(resolve => {
+    setTimeout(() => {
+      const div = el('div', 'line');
+      div.textContent = '\u00A0';
+      content.appendChild(div);
+      requestAnimationFrame(() => requestAnimationFrame(() => div.classList.add('show')));
+      resolve();
+    }, delay);
+  });
+}
+
+function typeInInput(text, speed) {
+  return new Promise(resolve => {
+    let i = 0;
+    inputText.textContent = '';
+    const timer = setInterval(() => {
+      inputText.textContent = text.slice(0, ++i);
+      if (i >= text.length) { clearInterval(timer); resolve(); }
+    }, speed);
+  });
+}
+function sendInput() {
+  const text = inputText.textContent;
+  inputText.textContent = '';
+  const div = el('div', 'line');
+  div.appendChild(el('span', 'c-prompt', '> '));
+  div.appendChild(el('span', 'c-txt', text));
+  content.appendChild(div);
+  requestAnimationFrame(() => requestAnimationFrame(() => div.classList.add('show')));
+}
+
+function setStatusline(badge, badgeClass, desc, ctx, time) {
+  clearEl(slMain);
+  slMain.appendChild(el('span', 'badge ' + badgeClass, badge));
+  slMain.appendChild(el('span', 'sl-desc', desc));
+  slMain.classList.add('show');
+  clearEl(slMeta);
+  slMeta.appendChild(document.createTextNode('ios-budget-app'));
+  slMeta.appendChild(el('span', 'sl-separator', '  |  '));
+  const frag = document.createDocumentFragment();
+  frag.appendChild(document.createTextNode('ctx '));
+  frag.appendChild(el('span', 'sl-ctx', ctx));
+  slMeta.appendChild(frag);
+  if (time) {
+    slMeta.appendChild(el('span', 'sl-separator', '  |  '));
+    slMeta.appendChild(document.createTextNode(time));
+  }
+  slMeta.classList.add('show');
+}
+
+function setSubtitle(step, text) {
+  subtitleStep.classList.remove('show');
+  subtitleText.classList.remove('show');
+  setTimeout(() => {
+    subtitleStep.textContent = step;
+    subtitleText.textContent = text;
+    requestAnimationFrame(() => {
+      subtitleStep.classList.add('show');
+      subtitleText.classList.add('show');
+    });
+  }, 300);
+}
+function clearSubtitle() {
+  subtitleStep.classList.remove('show');
+  subtitleText.classList.remove('show');
+}
+
+async function showOverlay(id, showFn, duration) {
+  const overlay = $(id);
+  overlay.style.display = 'flex';
+  overlay.classList.remove('hide');
+  await showFn();
+  await wait(duration);
+  overlay.classList.add('hide');
+  await wait(600);
+  overlay.style.display = 'none';
+}
+
+async function runDemo() {
+  // === INTRO: pain point + structure ===
+  await showOverlay('intro', async () => {
+    await wait(400);
+    $('introTitle').classList.add('show');
+    await wait(400);
+    $('introSub').classList.add('show');
+    await wait(600);
+    $('introStruct').classList.add('show');
+    await wait(800);
+    $('sp1').classList.add('show');
+    await wait(400);
+    $('sd1').classList.add('show');
+    await wait(300);
+    $('sd2').classList.add('show');
+    await wait(500);
+    $('sp2').classList.add('show');
+    await wait(300);
+    $('sd3').classList.add('show');
+    await wait(600);
+    $('introFlow').classList.add('show');
+  }, 17000);
+
+  // Reset intro classes
+  ['introTitle','introSub','introStruct','sp1','sp2','sd1','sd2','sd3','introFlow'].forEach(
+    id => $(id).classList.remove('show')
+  );
+
+  // === Phase 1: New session, yesterday's context is gone ===
+  clearContent();
+  clearEl(slMain); slMain.classList.remove('show');
+  clearEl(slMeta); slMeta.classList.remove('show');
+  inputText.textContent = '';
+
+  setSubtitle('1', '\u65B0\u7A97\u53E3\u6253\u5F00 -- \u6628\u5929\u7684\u5BF9\u8BDD\u5DF2\u7ECF\u4E0D\u5728\u4E86');
+
+  await addLine([['c-dim', '$ claude']], 200);
+  await addLine([['c-dim', 'Starting session...']], 600);
+  await wait(500);
+  await addLine([['c-txt', 'Claude Code v1.0']], 300);
+
+  // SessionStart hook shows memo hint
+  await addLine([['c-dim', '[memo] \u6700\u8FD1\u9879\u76EE: iOS\u8BB0\u8D26App (3-20, 3\u6761) | 2D\u5C0F\u6E38\u620F (3-21, 1\u6761)']], 400);
+  await addLine([['c-dim', '\u8F93\u5165 /recall \u67E5\u770B\u8BE6\u60C5']], 300);
+
+  setStatusline('[---]', 'badge-init', '~/ios-budget-app (main)', '0%', '');
+
+  await wait(7000);
+
+  // === Phase 2: User types /recall ===
+  setSubtitle('2', '\u8F93\u5165 /recall -- \u9009\u62E9\u9879\u76EE\u548C\u65E5\u671F');
+
+  await typeInInput('/recall', 80);
+  await wait(500);
+  sendInput();
+  await wait(600);
+
+  await addLine([['c-txt', 'Recent projects:']], 300);
+  await addLine([['c-bold', '  1. iOS\u8BB0\u8D26App'], ['c-dim', '  (\u6628\u5929, 3\u6761)']], 300);
+  await addLine([['c-txt', '  2. 2D\u5C0F\u6E38\u620F'], ['c-dim', '  (\u4ECA\u5929, 1\u6761)']], 200);
+  await addEmptyLine(200);
+  await addLine([['c-dim', '\u54EA\u4E2A\u9879\u76EE\uFF1F(\u8F93\u5165\u7F16\u53F7\u6216\u540D\u79F0)']], 300);
+
+  await wait(1500);
+
+  // User selects project
+  await typeInInput('1', 80);
+  await wait(400);
+  sendInput();
+  await wait(500);
+
+  await addLine([['c-txt', 'iOS\u8BB0\u8D26App memos:']], 300);
+  await addLine([['c-bold', '  1. 2026-03-20'], ['c-dim', '  -- 3\u6761\u8BB0\u5F55']], 300);
+  await addLine([['c-txt', '  2. 2026-03-19'], ['c-dim', '  -- 2\u6761\u8BB0\u5F55']], 200);
+  await addEmptyLine(200);
+  await addLine([['c-dim', '\u54EA\u4E2A\u65E5\u671F\uFF1F(\u7F16\u53F7\uFF0C\u6216\u591A\u4E2A\u5982 1,2)']], 300);
+
+  await wait(1000);
+
+  // User selects date
+  await typeInInput('1', 80);
+  await wait(400);
+  sendInput();
+  await wait(400);
+
+  await wait(3000);
+
+  // === Phase 3: Memo content displayed ===
+  clearContent();
+  setSubtitle('3', '\u6628\u5929\u7684\u8BB0\u5F55\u5168\u90E8\u51FA\u6765\u4E86');
+
+  await addLine([['c-bold', '# 2026-03-20']], 300);
+  await addEmptyLine(200);
+  await addLine([['c-bold', '## 14:23 | \u642D\u5EFA\u9996\u9875 + \u8BB0\u8D26\u8868\u5355']], 400);
+  await addLine([['c-txt', '- '], ['c-yellow', '\u3010\u51B3\u7B56\u3011'], ['c-txt', '\u7528 SwiftUI + Core Data\uFF0C\u4E0D\u7528 React Native']], 300);
+  await addLine([['c-txt', '- '], ['c-yellow', '\u3010\u6570\u636E\u3011'], ['c-txt', '\u652F\u6301\u9910\u996E/\u4EA4\u901A/\u5A31\u4E50\u7B49 8 \u4E2A\u5206\u7C7B']], 250);
+  await addLine([['c-txt', '- '], ['c-green', '\u3010\u7ED3\u8BBA\u3011'], ['c-txt', '\u5206\u7C7B\u9009\u62E9\u5668 + \u91D1\u989D\u8F93\u5165\u5DF2\u5B8C\u6210']], 250);
+
+  await wait(1500);
+
+  await addEmptyLine(200);
+  await addLine([['c-bold', '## 15:10 | \u505A\u6708\u5EA6\u62A5\u8868\u56FE\u8868']], 400);
+  await addLine([['c-txt', '- '], ['c-yellow', '\u3010\u51B3\u7B56\u3011'], ['c-txt', '\u7528 Swift Charts\uFF0C\u652F\u6301\u997C\u56FE + \u67F1\u72B6\u56FE']], 300);
+  await addLine([['c-txt', '- '], ['c-red', '\u3010待办\u3011'], ['c-txt', '\u997C\u56FE\u914D\u8272\u8FD8\u6CA1\u8C03']], 250);
+
+  await wait(1500);
+
+  await addEmptyLine(200);
+  await addLine([['c-bold', '## 16:45 | \u6DFB\u52A0\u9884\u7B97\u529F\u80FD']], 400);
+  await addLine([['c-txt', '- '], ['c-green', '\u3010\u7ED3\u8BBA\u3011'], ['c-txt', '\u6BCF\u6708\u9884\u7B97\u8BBE\u7F6E + \u8D85\u652F\u63D0\u9192\u5DF2\u5B8C\u6210']], 300);
+  await addLine([['c-txt', '- '], ['c-red', '\u3010待办\u3011'], ['c-txt', '\u5468\u62A5\u63A8\u9001\u901A\u77E5\u8FD8\u6CA1\u505A']], 250);
+
+  setStatusline('[WIP]', 'badge-wip', '\u67E5\u770B\u6628\u65E5\u5DE5\u4F5C\u8BB0\u5F55', '5%', '2m');
+
+  await wait(3000);
+
+  // === Phase 4: Continue working based on recalled context ===
+  clearContent();
+  setSubtitle('4', '\u76F4\u63A5\u63A5\u7740\u6628\u5929\u7684 待办 \u7EE7\u7EED\u505A');
+
+  await typeInInput('\u6628\u5929\u997C\u56FE\u914D\u8272\u548C\u5468\u62A5\u901A\u77E5\u8FD8\u6CA1\u505A\uFF0C\u7EE7\u7EED', 50);
+  await wait(600);
+  sendInput();
+  await wait(400);
+
+  await addLine([['c-dim', '\u6536\u5230\uFF0C\u6211\u770B\u5230\u6628\u5929\u7684\u8BB0\u5F55\u4E86\u3002\u5148\u8C03\u997C\u56FE\u914D\u8272\u2026\u2026']], 400);
+  await wait(400);
+
+  setStatusline('[WIP]', 'badge-wip', '\u8C03\u6574\u997C\u56FE\u914D\u8272 + \u5468\u62A5\u901A\u77E5', '8%', '3m');
+
+  await addLine([['c-dim', 'Reading ChartView.swift...']], 500);
+  await wait(400);
+  await addLine([['c-green', '+ let colors: [Color] = [.blue, .green, .orange, .pink]']], 400);
+  await addLine([['c-green', '+ .chartForegroundStyleScale(range: colors)']], 300);
+  await wait(500);
+  await addEmptyLine(100);
+  await addLine([['c-dim', 'Adding weekly notification...']], 400);
+  await addLine([['c-green', '+ UNUserNotificationCenter.schedulePush(']], 300);
+  await addLine([['c-green', '+   title: "\u672C\u5468\u652F\u51FA\u62A5\u544A\u5DF2\u751F\u6210")']], 250);
+
+  await wait(1000);
+  await addEmptyLine(100);
+  await addLine([['c-txt', '\u4E24\u4E2A 待办 \u90FD\u5B8C\u6210\u4E86\uFF1A']], 400);
+  await addLine([['c-txt', '1. \u997C\u56FE\u914D\u8272\u5DF2\u8C03\u6574\u4E3A\u4E3B\u9898\u8272']], 250);
+  await addLine([['c-txt', '2. \u5468\u62A5\u63A8\u9001\u901A\u77E5\u5DF2\u6DFB\u52A0']], 250);
+
+  await wait(5000);
+
+  // === OUTRO ===
+  clearSubtitle();
+  await showOverlay('outro', async () => {
+    await wait(300);
+    $('outroTitle').classList.add('show');
+    await wait(300);
+    $('outroSub').classList.add('show');
+    await wait(300);
+    $('outroUrl').classList.add('show');
+    await wait(300);
+    $('outroAuthor').classList.add('show');
+  }, 7000);
+
+  ['outroTitle','outroSub','outroUrl','outroAuthor'].forEach(
+    id => $(id).classList.remove('show')
+  );
+
+  runDemo();
+}
+
+document.fonts.ready.then(() => setTimeout(runDemo, 500));
+</script>
+</body>
+</html>
