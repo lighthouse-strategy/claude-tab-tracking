@@ -23,6 +23,8 @@ import time
 import urllib.request
 from datetime import datetime
 
+from claude_cli_common import build_claude_cli_cmd
+
 
 # Prevent recursion from CLI backend subprocess
 if os.environ.get('CLAUDE_TAB_SKIP_HOOK') == '1':
@@ -270,7 +272,7 @@ def claude_cli_summarize(messages, task_file_path=None, memo_base_dir=None, proj
     if task_file_path is None:
         # Synchronous path (for tests / direct invocation)
         result = subprocess.run(
-            ['claude', '-p', '--model', 'haiku'],
+            build_claude_cli_cmd(),
             input=prompt,
             capture_output=True, text=True,
             timeout=CLAUDE_CLI_TIMEOUT,

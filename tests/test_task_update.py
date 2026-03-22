@@ -474,6 +474,31 @@ def test_claude_cli_summarize_failure(monkeypatch):
         claude_cli_summarize(msgs)
 
 
+def test_claude_cli_summarize_disables_hooks(monkeypatch):
+    """CLI backend should disable hooks to avoid recursive Stop-hook sessions."""
+    seen = {}
+
+    def mock_run(cmd, **kwargs):
+        seen['cmd'] = cmd
+        class Result:
+            returncode = 0
+            stdout = 'Fix recursion bug'
+            stderr = ''
+        return Result()
+
+    monkeypatch.setattr(subprocess, 'run', mock_run)
+    msgs = [_msg('user', 'Summarize current task'), _msg('assistant', 'Working on it')]
+    task, done, memo = claude_cli_summarize(msgs)
+
+    assert task == 'Fix recursion bug'
+    assert done is False
+    assert memo == ''
+    assert '--settings' in seen['cmd']
+    settings_value = seen['cmd'][seen['cmd'].index('--settings') + 1]
+    assert '"disableAllHooks":true' in settings_value.replace(' ', '')
+    assert '--no-session-persistence' in seen['cmd']
+
+
 # ---------------------------------------------------------------------------
 # Tests for memo file writing
 # ---------------------------------------------------------------------------
@@ -595,6 +620,36 @@ def test_cli_background_parse_response_no_memo():
     assert task == 'Fix the data pipeline'
     assert done is False
     assert memo == ''
+
+
+def test_cli_background_main_disables_hooks(tmp_path, monkeypatch):
+    """Detached CLI helper should disable hooks before invoking claude."""
+    import cli_background
+
+    prompt_file = tmp_path / 'prompt.txt'
+    task_file = tmp_path / 'task.txt'
+    prompt_file.write_text('summarize me')
+
+    seen = {}
+
+    def mock_run(cmd, **kwargs):
+        seen['cmd'] = cmd
+        class Result:
+            returncode = 0
+            stdout = 'Summarized task'
+            stderr = ''
+        return Result()
+
+    monkeypatch.setattr(cli_background.subprocess, 'run', mock_run)
+    monkeypatch.setattr(sys, 'argv', ['cli_background.py', str(prompt_file), str(task_file)])
+
+    cli_background.main()
+
+    assert task_file.read_text().splitlines()[0] == 'WIP:Summarized task'
+    assert '--settings' in seen['cmd']
+    settings_value = seen['cmd'][seen['cmd'].index('--settings') + 1]
+    assert '"disableAllHooks":true' in settings_value.replace(' ', '')
+    assert '--no-session-persistence' in seen['cmd']
 
 
 # ---------------------------------------------------------------------------
