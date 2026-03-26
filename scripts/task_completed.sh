@@ -21,6 +21,7 @@ DESC="${CURRENT#WIP:}"
 DESC="${DESC#AUTO:}"
 DESC="${DESC#DONE:}"
 DESC="${DESC#MANUAL:}"
+DESC="${DESC#INIT:}"
 DESC=$(echo "$DESC" | tr -d '\n')
 
 # Write DONE status, preserving PREV line

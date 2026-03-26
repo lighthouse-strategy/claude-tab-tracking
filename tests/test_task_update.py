@@ -590,33 +590,33 @@ def test_load_config_invalid_yaml(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# Tests for cli_background.parse_response
+# Tests for cli_background using parse_llm_response (imported from dynamic_task_update)
 # ---------------------------------------------------------------------------
 
 
 def test_cli_background_parse_response():
-    """Test that cli_background's parse_response handles memo correctly."""
+    """Test that parse_llm_response handles memo correctly."""
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'scripts'))
-    from cli_background import parse_response
-    task, done, memo = parse_response("任务：修复 bug\n备忘：【决策】改用新方案")
+    from dynamic_task_update import parse_llm_response
+    task, done, memo = parse_llm_response("任务：修复 bug\n备忘：【决策】改用新方案")
     assert task == '修复 bug'
     assert done is False
     assert memo == '【决策】改用新方案'
 
 
 def test_cli_background_parse_response_done():
-    """parse_response detects completion prefix."""
-    from cli_background import parse_response
-    task, done, memo = parse_response("任务：[完成] 部署上线\n备忘：【结论】顺利完成")
+    """parse_llm_response detects completion prefix."""
+    from dynamic_task_update import parse_llm_response
+    task, done, memo = parse_llm_response("任务：[完成] 部署上线\n备忘：【结论】顺利完成")
     assert task == '部署上线'
     assert done is True
     assert memo == '【结论】顺利完成'
 
 
 def test_cli_background_parse_response_no_memo():
-    """parse_response returns empty memo when none present."""
-    from cli_background import parse_response
-    task, done, memo = parse_response("Fix the data pipeline")
+    """parse_llm_response returns empty memo when none present."""
+    from dynamic_task_update import parse_llm_response
+    task, done, memo = parse_llm_response("Fix the data pipeline")
     assert task == 'Fix the data pipeline'
     assert done is False
     assert memo == ''

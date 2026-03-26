@@ -12,6 +12,7 @@ Summarization backends (set CLAUDE_TAB_BACKEND to choose):
 Updates task file with WIP:description or DONE:description.
 """
 import json
+import logging
 import os
 import pathlib
 import random

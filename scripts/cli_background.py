@@ -8,51 +8,16 @@ Usage: cli_background.py <prompt_file> <task_file> [<memo_base_dir> <project_nam
 """
 import logging
 import os
-import re
 import subprocess
 import sys
 from datetime import datetime
 
 from claude_cli_common import build_claude_cli_cmd
+from dynamic_task_update import parse_llm_response
 
 logging.basicConfig(level=logging.WARNING, format='%(levelname)s: %(message)s')
 
 TIMEOUT = 60
-
-
-def parse_response(text):
-    """Parse LLM response into (task, is_done, memo).
-
-    Duplicates the logic from dynamic_task_update.parse_llm_response to avoid
-    import complexity (this script runs as a detached process).
-    """
-    text = text.strip()
-    lines = text.splitlines()
-
-    memo = ''
-    task_lines = []
-    for line in lines:
-        m = re.match(r'^备忘[：:](.*)$', line.strip())
-        if m:
-            memo = m.group(1).strip()
-        else:
-            task_lines.append(line)
-
-    task_text = task_lines[0].strip() if task_lines else ''
-    # Strip 任务： or 任务: prefix
-    task_text = re.sub(r'^任务[：:]\s*', '', task_text)
-
-    is_done = bool(re.match(
-        r'^(\[完成\]|完成\s|完成：|completed[: ]|\[done\])',
-        task_text, re.IGNORECASE,
-    ))
-    task = re.sub(
-        r'^(\[完成\]\s*|完成\s+|完成：\s*|\[done\]\s*|completed:\s*)',
-        '', task_text, flags=re.IGNORECASE,
-    ).strip()
-    if len(task) > 60:
-        task = task[:57] + '...'
-    return task, is_done, memo
 
 
 def write_memo_file(memo_content, task_desc, project_name, memo_base_dir):
@@ -94,12 +59,9 @@ def main():
             prompt = f.read()
     except Exception:
         logging.exception("Failed to read prompt file %s", prompt_path)
-        try:
-            os.unlink(prompt_path)
-        except OSError:
-            logging.exception("Failed to delete temp prompt file %s", prompt_path)
         sys.exit(1)
-    else:
+    finally:
+        # Always clean up the temp file, even on read failure or later crash
         try:
             os.unlink(prompt_path)
         except OSError:
@@ -118,7 +80,7 @@ def main():
     if not text:
         sys.exit(1)
 
-    task, is_done, memo = parse_response(text)
+    task, is_done, memo = parse_llm_response(text)
     if not task:
         sys.exit(1)
 
