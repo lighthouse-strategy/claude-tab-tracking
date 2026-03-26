@@ -61,10 +61,10 @@ except json.JSONDecodeError as e:
 hooks = d.setdefault("hooks", {})
 
 new_hooks = {
-    "SessionStart": [{"matcher": "", "hooks": [{"type": "command", "command": "~/.claude/scripts/session_start.sh"}]}],
-    "Stop":         [{"hooks": [{"type": "command", "command": "~/.claude/scripts/dynamic_task_update.sh"}]}],
-    "TaskCompleted":[{"hooks": [{"type": "command", "command": "~/.claude/scripts/task_completed.sh"}]}],
-    "SessionEnd":   [{"matcher": "", "hooks": [{"type": "command", "command": "~/.claude/scripts/session_end.sh"}]}],
+    "SessionStart": [{"matcher": "", "hooks": [{"type": "command", "command": "~/.claude/scripts/session_start.sh", "timeout": 10}]}],
+    "Stop":         [{"hooks": [{"type": "command", "command": "~/.claude/scripts/dynamic_task_update.sh", "timeout": 15}]}],
+    "TaskCompleted":[{"hooks": [{"type": "command", "command": "~/.claude/scripts/task_completed.sh", "timeout": 5}]}],
+    "SessionEnd":   [{"matcher": "", "hooks": [{"type": "command", "command": "~/.claude/scripts/session_end.sh", "timeout": 5}]}],
 }
 
 for event, config in new_hooks.items():
