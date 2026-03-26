@@ -16,7 +16,7 @@ If you run multiple Claude Code sessions simultaneously, this tells you at a gla
 [WIP]  Fix authentication bug in api/routes.py
 [DONE] Deploy model to production server
 [DONE] Refactor database schema
-       my-project  |  ctx 14%  |  $0.42  |  23min
+       my-project  |  ctx 14%  |  23min
 ```
 
 **Status badges:**
@@ -188,7 +188,7 @@ cd claude-tab-tracking && ./uninstall.sh
 ### 2026-03-26
 
 - **New: Multi-layer task history** — Up to 3 previous completed tasks stored (`PREV:1/2/3` format), top 2 displayed in statusline. Backward compatible with old `PREV:` format.
-- **New: API cost display** — Statusline shows session cost (e.g., `$0.42`) when cost data is available from Claude Code.
+- **Removed: API cost display** — Initially added but removed; the field shows estimated API-equivalent cost which is misleading for Max subscribers.
 - **New: Memo full-text search** — `/memo search <keyword>` searches all memos across projects. New `memo_search.py` backend.
 - **New: Uninstall script** — `./uninstall.sh` cleanly reverses installation (hooks, scripts, commands). Preserves user data.
 - **Fix: duplicated parse logic** — `cli_background.py` now imports from `dynamic_task_update` instead of duplicating 33 lines.

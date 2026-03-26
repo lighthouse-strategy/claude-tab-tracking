@@ -93,20 +93,7 @@ else
   echo -e "${DIM}[---] starting...${RESET}"
 fi
 
-# --- API cost ---
-COST=$(echo "$INPUT" | jq -r '.cost.total_cost_usd // .cost.total_cost // 0' 2>/dev/null)
-COST=${COST:-0}
-# Build cost segment (only if > 0)
-COST_SEG=""
-if [ "$COST" != "0" ] && [ "$COST" != "null" ] && [ "$COST" != "" ]; then
-  # Check if cost is actually > 0 (handles float comparison)
-  if echo "$COST" | awk '{exit ($1 > 0) ? 0 : 1}' 2>/dev/null; then
-    COST_FMT=$(printf '$%.2f' "$COST")
-    COST_SEG="  |  ${CYAN}${COST_FMT}${RESET}"
-  fi
-fi
-
-# --- Last line: Directory | context% | cost | duration ---
+# --- Last line: Directory | context% | duration ---
 # Color context % based on usage
 if [ "$PCT" -lt 50 ]; then
   PCT_COLOR="$GREEN"
@@ -116,4 +103,4 @@ else
   PCT_COLOR="$RED"
 fi
 
-echo -e "${DIM}${DIR_NAME}${RESET}  |  ctx ${PCT_COLOR}${PCT}%${RESET}${COST_SEG}  |  ${DIM}${DURATION_FMT}${RESET}"
+echo -e "${DIM}${DIR_NAME}${RESET}  |  ctx ${PCT_COLOR}${PCT}%${RESET}  |  ${DIM}${DURATION_FMT}${RESET}"
