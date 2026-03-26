@@ -35,7 +35,7 @@ else
 fi
 
 # Also clean up task files older than 7 days
-find "$TASKS_DIR" -name "*.txt" -mtime +7 -delete 2>/dev/null
+find "$TASKS_DIR" -name "*.txt" ! -name "current_*.txt" -mtime +7 -delete 2>/dev/null
 
 # --- Memo overview ---
 MEMO_DIR="$HOME/.claude/memos"

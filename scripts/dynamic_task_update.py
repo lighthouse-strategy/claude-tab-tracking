@@ -24,6 +24,12 @@ import time
 import urllib.request
 from datetime import datetime
 
+try:
+    import fcntl
+    HAS_FCNTL = True
+except ImportError:
+    HAS_FCNTL = False
+
 from claude_cli_common import build_claude_cli_cmd
 
 
@@ -38,6 +44,7 @@ DEFAULT_CONFIG = {
     'tags': ['决策', '数据', '结论', 'TODO'],
     'min_turns': 3,
     'archive_days': 90,
+    'ollama_timeout': 15,
 }
 
 
@@ -77,6 +84,8 @@ def load_memo_config(config_path=None):
                     config['min_turns'] = int(val)
                 elif key == 'archive_days' and val.isdigit():
                     config['archive_days'] = int(val)
+                elif key == 'ollama_timeout' and val.isdigit():
+                    config['ollama_timeout'] = int(val)
         if tags:
             config['tags'] = tags
         config['tags_str'] = ''.join(f'【{t}】' for t in config['tags'])
@@ -363,7 +372,7 @@ def claude_summarize(messages, min_turns=3, tags=None):
 # ---------------------------------------------------------------------------
 
 OLLAMA_URL = 'http://localhost:11434/api/chat'
-OLLAMA_TIMEOUT = 10
+OLLAMA_TIMEOUT = 15
 
 
 def _get_ollama_model():
@@ -384,8 +393,10 @@ def _get_ollama_model():
     return models[0]  # fall back to whatever is installed
 
 
-def ollama_summarize(messages, min_turns=3, tags=None):
+def ollama_summarize(messages, min_turns=3, tags=None, timeout=None):
     """Call local Ollama. Raises if Ollama is not running or has no models."""
+    if timeout is None:
+        timeout = OLLAMA_TIMEOUT
     model = _get_ollama_model()
     user_content = build_user_prompt(messages, min_turns=min_turns, tags=tags)
 
@@ -406,7 +417,7 @@ def ollama_summarize(messages, min_turns=3, tags=None):
         headers={'Content-Type': 'application/json'},
         method='POST',
     )
-    with urllib.request.urlopen(req, timeout=OLLAMA_TIMEOUT) as resp:
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
         result = json.loads(resp.read())
 
     text = result.get('message', {}).get('content', '').strip()
@@ -515,7 +526,11 @@ def resolve_project_name(cwd):
 
 
 def write_memo(memo_content, task_desc, project_name, memo_base_dir=None):
-    """Append a memo entry to the project's daily memo file."""
+    """Append a memo entry to the project's daily memo file.
+
+    Uses fcntl file locking (Unix) to prevent interleaved writes when
+    multiple processes (API sync + CLI background) write simultaneously.
+    """
     if not memo_content:
         return
     if memo_base_dir is None:
@@ -532,13 +547,26 @@ def write_memo(memo_content, task_desc, project_name, memo_base_dir=None):
         entry_lines.append(f'- {item}')
     entry_lines.append('')
 
-    if not os.path.exists(memo_file):
-        with open(memo_file, 'w', encoding='utf-8') as f:
-            f.write(f'# {today}\n')
-            f.write('\n'.join(entry_lines))
+    def _do_write():
+        if not os.path.exists(memo_file):
+            with open(memo_file, 'w', encoding='utf-8') as f:
+                f.write(f'# {today}\n')
+                f.write('\n'.join(entry_lines))
+        else:
+            with open(memo_file, 'a', encoding='utf-8') as f:
+                f.write('\n'.join(entry_lines))
+
+    if HAS_FCNTL:
+        lock_path = memo_file + '.lock'
+        with open(lock_path, 'w') as lock_f:
+            try:
+                fcntl.flock(lock_f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except OSError:
+                return  # another process is writing, skip
+            _do_write()
+            fcntl.flock(lock_f, fcntl.LOCK_UN)
     else:
-        with open(memo_file, 'a', encoding='utf-8') as f:
-            f.write('\n'.join(entry_lines))
+        _do_write()
 
 
 # ---------------------------------------------------------------------------
@@ -617,6 +645,13 @@ def main():
                     # CLI backend launched async — it will write the file itself
                     sys.exit(0)
                 task_desc, is_done, memo_content = result
+            elif backend is ollama_summarize:
+                task_desc, is_done, memo_content = backend(
+                    messages,
+                    min_turns=memo_config['min_turns'],
+                    tags=memo_config['tags_str'],
+                    timeout=memo_config.get('ollama_timeout', OLLAMA_TIMEOUT),
+                )
             else:
                 task_desc, is_done, memo_content = backend(
                     messages,

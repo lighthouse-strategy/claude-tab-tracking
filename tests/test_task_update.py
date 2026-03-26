@@ -681,3 +681,72 @@ def test_archive_old_memos(tmp_path):
     assert not old_file.exists()
     assert (archive_dir / '2025-12-01.md').exists()
     assert new_file.exists()
+
+
+# ---------------------------------------------------------------------------
+# Tests for ollama_timeout config
+# ---------------------------------------------------------------------------
+
+from dynamic_task_update import OLLAMA_TIMEOUT, DEFAULT_CONFIG
+
+
+def test_ollama_timeout_default_is_15():
+    """OLLAMA_TIMEOUT module-level default should be 15."""
+    assert OLLAMA_TIMEOUT == 15
+
+
+def test_default_config_has_ollama_timeout():
+    """DEFAULT_CONFIG should include ollama_timeout."""
+    assert 'ollama_timeout' in DEFAULT_CONFIG
+    assert DEFAULT_CONFIG['ollama_timeout'] == 15
+
+
+def test_load_config_ollama_timeout(tmp_path):
+    """load_memo_config should parse ollama_timeout from YAML."""
+    config_file = tmp_path / 'config.yaml'
+    config_file.write_text('ollama_timeout: 30\n')
+    config = load_memo_config(str(config_file))
+    assert config['ollama_timeout'] == 30
+
+
+def test_load_config_ollama_timeout_default(tmp_path):
+    """load_memo_config should use default ollama_timeout when not in YAML."""
+    config = load_memo_config(str(tmp_path / 'nonexistent.yaml'))
+    assert config['ollama_timeout'] == 15
+
+
+def test_ollama_summarize_accepts_timeout_param():
+    """ollama_summarize should accept a timeout keyword argument."""
+    import inspect
+    sig = inspect.signature(ollama_summarize)
+    assert 'timeout' in sig.parameters
+
+
+# ---------------------------------------------------------------------------
+# Tests for write_memo file locking
+# ---------------------------------------------------------------------------
+
+from dynamic_task_update import HAS_FCNTL
+
+
+def test_write_memo_creates_lock_file(tmp_path):
+    """On Unix (fcntl available), write_memo should create a .lock file."""
+    if not HAS_FCNTL:
+        return  # skip on Windows
+    memo_dir = tmp_path / "memos"
+    write_memo('【决策】test', 'task', 'proj', str(memo_dir))
+    today = datetime.now().strftime('%Y-%m-%d')
+    lock_file = memo_dir / 'proj' / f'{today}.md.lock'
+    assert lock_file.exists()
+
+
+def test_write_memo_still_works_without_fcntl(tmp_path, monkeypatch):
+    """write_memo should fall back to unlocked write when HAS_FCNTL is False."""
+    import dynamic_task_update
+    monkeypatch.setattr(dynamic_task_update, 'HAS_FCNTL', False)
+    memo_dir = tmp_path / "memos"
+    write_memo('【决策】fallback test', 'task', 'proj', str(memo_dir))
+    today = datetime.now().strftime('%Y-%m-%d')
+    memo_file = memo_dir / 'proj' / f'{today}.md'
+    assert memo_file.exists()
+    assert '【决策】fallback test' in memo_file.read_text()
