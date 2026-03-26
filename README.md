@@ -15,7 +15,8 @@ If you run multiple Claude Code sessions simultaneously, this tells you at a gla
 ```
 [WIP]  Fix authentication bug in api/routes.py
 [DONE] Deploy model to production server
-       my-project  |  ctx 14%  |  23min
+[DONE] Refactor database schema
+       my-project  |  ctx 14%  |  $0.42  |  23min
 ```
 
 **Status badges:**
@@ -24,7 +25,7 @@ If you run multiple Claude Code sessions simultaneously, this tells you at a gla
 - `[DONE]` — task completed (detected automatically)
 - `[SET]` — task manually set with `/task`
 
-When you finish one task and start another, the previous task stays visible as a dimmed `[DONE]` line beneath the current task.
+When you finish one task and start another, the previous tasks stay visible as dimmed `[DONE]` lines beneath the current task (up to 2 previous tasks displayed, 3 stored).
 
 ## How it works
 
@@ -177,9 +178,26 @@ rm -rf ~/.claude/session-tasks/
 rm -rf ~/.claude/memos/
 ```
 
-Then remove the `SessionStart`, `Stop`, `TaskCompleted`, `SessionEnd` entries from the `hooks` section of `~/.claude/settings.json`, and remove the `statusLine` key.
+Or use the uninstall script:
+```bash
+cd claude-tab-tracking && ./uninstall.sh
+```
 
 ## Changelog
+
+### 2026-03-26
+
+- **New: Multi-layer task history** — Up to 3 previous completed tasks stored (`PREV:1/2/3` format), top 2 displayed in statusline. Backward compatible with old `PREV:` format.
+- **New: API cost display** — Statusline shows session cost (e.g., `$0.42`) when cost data is available from Claude Code.
+- **New: Memo full-text search** — `/memo search <keyword>` searches all memos across projects. New `memo_search.py` backend.
+- **New: Uninstall script** — `./uninstall.sh` cleanly reverses installation (hooks, scripts, commands). Preserves user data.
+- **Fix: duplicated parse logic** — `cli_background.py` now imports from `dynamic_task_update` instead of duplicating 33 lines.
+- **Fix: missing logging import** — `archive_old_memos()` no longer silently swallows errors.
+- **Fix: INIT: prefix not stripped** — `task_completed.sh` now handles all 5 task prefixes.
+- **Fix: temp file leak** — Background CLI helper uses `try/finally` for cleanup.
+- **Improvement: configurable Ollama timeout** — Default raised from 10s to 15s, configurable via `config.yaml`.
+- **Improvement: memo file locking** — `fcntl` prevents concurrent write corruption.
+- **Improvement: cleanup safety** — Session task cleanup no longer deletes `current_*.txt` lookup files.
 
 ### 2026-03-22
 
