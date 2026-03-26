@@ -13,7 +13,7 @@ import sys
 from datetime import datetime
 
 from claude_cli_common import build_claude_cli_cmd
-from dynamic_task_update import parse_llm_response
+from dynamic_task_update import parse_llm_response, read_prev_lines
 
 logging.basicConfig(level=logging.WARNING, format='%(levelname)s: %(message)s')
 
@@ -101,18 +101,12 @@ def main():
             # Another process holds the lock, skip this write
             sys.exit(0)
 
-        prev = None
-        if os.path.exists(task_file_path):
-            with open(task_file_path, 'r', encoding='utf-8') as f:
-                for line in f:
-                    if line.startswith('PREV:'):
-                        prev = line.strip()
-                        break
+        prev_lines = read_prev_lines(task_file_path)
 
         with open(task_file_path, 'w', encoding='utf-8') as f:
             f.write(f"{prefix}:{task}\n")
-            if prev:
-                f.write(f"{prev}\n")
+            for pl in prev_lines:
+                f.write(f"{pl}\n")
 
         fcntl.flock(lock_f, fcntl.LOCK_UN)
 

@@ -599,6 +599,55 @@ def archive_old_memos(memo_base_dir=None, archive_days=90):
 
 
 # ---------------------------------------------------------------------------
+# Multi-layer PREV history helpers
+# ---------------------------------------------------------------------------
+
+MAX_PREV = 3
+
+
+def read_prev_lines(task_file_path):
+    """Read existing PREV lines from a task file.
+
+    Handles both old format (``PREV:task``) and new format (``PREV:N:task``).
+    Returns a list of normalised ``PREV:N:task`` strings, sorted by N.
+    """
+    if not os.path.exists(task_file_path):
+        return []
+    prev = {}
+    with open(task_file_path, 'r', encoding='utf-8') as f:
+        for line in f:
+            line = line.strip()
+            if not line.startswith('PREV:'):
+                continue
+            rest = line[5:]  # after "PREV:"
+            # New format: "PREV:N:task"
+            m = re.match(r'^(\d+):(.*)$', rest)
+            if m:
+                n = int(m.group(1))
+                prev[n] = m.group(2)
+            else:
+                # Old format: "PREV:task" — treat as PREV:1
+                prev.setdefault(1, rest)
+    return [f"PREV:{n}:{prev[n]}" for n in sorted(prev) if n <= MAX_PREV]
+
+
+def shift_prev_lines(current_done_desc, task_file_path):
+    """Shift existing PREVs down by one and insert *current_done_desc* as PREV:1.
+
+    Returns a list of ``PREV:N:task`` strings (max MAX_PREV).
+    """
+    existing = read_prev_lines(task_file_path)
+    new_prevs = [f"PREV:1:{current_done_desc}"]
+    for entry in existing:
+        m = re.match(r'^PREV:(\d+):(.*)$', entry)
+        if m:
+            n = int(m.group(1)) + 1
+            if n <= MAX_PREV:
+                new_prevs.append(f"PREV:{n}:{m.group(2)}")
+    return new_prevs
+
+
+# ---------------------------------------------------------------------------
 # Main — try each backend in priority order
 # ---------------------------------------------------------------------------
 
@@ -668,22 +717,16 @@ def main():
 
     prefix = 'DONE' if is_done else 'WIP'
 
-    # Read existing PREV line before overwriting
-    prev_line = None
-    if os.path.exists(task_file_path):
-        with open(task_file_path, 'r', encoding='utf-8') as f:
-            for line in f:
-                if line.startswith('PREV:'):
-                    prev_line = line.strip()
-                    break
+    # Read existing PREV lines before overwriting (up to 3)
+    prev_lines = read_prev_lines(task_file_path)
 
     dirpart = os.path.dirname(task_file_path)
     if dirpart:
         os.makedirs(dirpart, exist_ok=True)
     with open(task_file_path, 'w', encoding='utf-8') as f:
         f.write(f"{prefix}:{task_desc}\n")
-        if prev_line:
-            f.write(f"{prev_line}\n")
+        for pl in prev_lines:
+            f.write(f"{pl}\n")
 
     if memo_content:
         cwd = os.environ.get('PWD', os.getcwd())

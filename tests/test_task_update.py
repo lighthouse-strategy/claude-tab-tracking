@@ -750,3 +750,203 @@ def test_write_memo_still_works_without_fcntl(tmp_path, monkeypatch):
     memo_file = memo_dir / 'proj' / f'{today}.md'
     assert memo_file.exists()
     assert '【决策】fallback test' in memo_file.read_text()
+
+
+# ---------------------------------------------------------------------------
+# Tests for multi-layer PREV history
+# ---------------------------------------------------------------------------
+
+from dynamic_task_update import read_prev_lines, shift_prev_lines
+
+
+def test_read_prev_lines_new_format(tmp_path):
+    """read_prev_lines should parse PREV:N:task format."""
+    f = tmp_path / "task.txt"
+    f.write_text("WIP:Current\nPREV:1:First done\nPREV:2:Second done\n")
+    result = read_prev_lines(str(f))
+    assert result == ["PREV:1:First done", "PREV:2:Second done"]
+
+
+def test_read_prev_lines_old_format(tmp_path):
+    """read_prev_lines should treat old PREV:task as PREV:1:task."""
+    f = tmp_path / "task.txt"
+    f.write_text("WIP:Current\nPREV:Old task\n")
+    result = read_prev_lines(str(f))
+    assert result == ["PREV:1:Old task"]
+
+
+def test_read_prev_lines_mixed_format(tmp_path):
+    """read_prev_lines handles mix of old and new formats."""
+    f = tmp_path / "task.txt"
+    f.write_text("WIP:Current\nPREV:Legacy task\nPREV:2:Newer task\n")
+    result = read_prev_lines(str(f))
+    assert result == ["PREV:1:Legacy task", "PREV:2:Newer task"]
+
+
+def test_read_prev_lines_empty_file(tmp_path):
+    """read_prev_lines returns empty list for file with no PREVs."""
+    f = tmp_path / "task.txt"
+    f.write_text("WIP:Current\n")
+    result = read_prev_lines(str(f))
+    assert result == []
+
+
+def test_read_prev_lines_nonexistent():
+    """read_prev_lines returns empty list for missing file."""
+    result = read_prev_lines("/tmp/nonexistent_task_file_xyz.txt")
+    assert result == []
+
+
+def test_read_prev_lines_caps_at_3(tmp_path):
+    """read_prev_lines should not return PREV:4 or higher."""
+    f = tmp_path / "task.txt"
+    f.write_text("WIP:Current\nPREV:1:A\nPREV:2:B\nPREV:3:C\nPREV:4:D\n")
+    result = read_prev_lines(str(f))
+    assert len(result) == 3
+    assert "PREV:4:D" not in result
+
+
+def test_shift_prev_lines_basic(tmp_path):
+    """shift_prev_lines pushes PREV:1 to PREV:2, inserts new PREV:1."""
+    f = tmp_path / "task.txt"
+    f.write_text("DONE:Old task\nPREV:1:First\nPREV:2:Second\n")
+    result = shift_prev_lines("New done", str(f))
+    assert result == ["PREV:1:New done", "PREV:2:First", "PREV:3:Second"]
+
+
+def test_shift_prev_lines_overflow(tmp_path):
+    """shift_prev_lines drops PREV:3 when it would become PREV:4."""
+    f = tmp_path / "task.txt"
+    f.write_text("DONE:Task\nPREV:1:A\nPREV:2:B\nPREV:3:C\n")
+    result = shift_prev_lines("New", str(f))
+    assert len(result) == 3
+    assert result[0] == "PREV:1:New"
+    assert result[1] == "PREV:2:A"
+    assert result[2] == "PREV:3:B"
+
+
+def test_shift_prev_lines_empty(tmp_path):
+    """shift_prev_lines with no existing PREVs creates PREV:1 only."""
+    f = tmp_path / "task.txt"
+    f.write_text("DONE:Task\n")
+    result = shift_prev_lines("Done task", str(f))
+    assert result == ["PREV:1:Done task"]
+
+
+def test_shift_prev_lines_old_format(tmp_path):
+    """shift_prev_lines handles old PREV:task format."""
+    f = tmp_path / "task.txt"
+    f.write_text("DONE:Current\nPREV:Legacy\n")
+    result = shift_prev_lines("New done", str(f))
+    assert result[0] == "PREV:1:New done"
+    assert result[1] == "PREV:2:Legacy"
+
+
+def test_main_preserves_multi_prev(tmp_path):
+    """When Python script writes a new task, it preserves all PREV lines."""
+    task_file = tmp_path / "test_session.txt"
+    task_file.write_text("WIP:Old task\nPREV:1:First\nPREV:2:Second\nPREV:3:Third\n")
+
+    prev_lines = read_prev_lines(str(task_file))
+    with open(task_file, 'w') as f:
+        f.write("WIP:New task\n")
+        for pl in prev_lines:
+            f.write(f"{pl}\n")
+
+    lines = task_file.read_text().splitlines()
+    assert lines[0] == "WIP:New task"
+    assert lines[1] == "PREV:1:First"
+    assert lines[2] == "PREV:2:Second"
+    assert lines[3] == "PREV:3:Third"
+
+
+# ---------------------------------------------------------------------------
+# Tests for memo search
+# ---------------------------------------------------------------------------
+
+from memo_search import search_memos
+
+
+def test_search_memos_finds_keyword(tmp_path):
+    """search_memos should find a memo by keyword."""
+    proj_dir = tmp_path / "test-project"
+    proj_dir.mkdir()
+    memo_file = proj_dir / "2026-03-26.md"
+    memo_file.write_text("# 2026-03-26\n\n## 14:30 | Fix JWT auth\n- Changed token expiry to 24h\n")
+
+    results = search_memos("JWT", memo_base_dir=str(tmp_path))
+    assert len(results) >= 1
+    assert results[0]['project'] == 'test-project'
+    assert results[0]['date'] == '2026-03-26'
+    assert 'JWT' in results[0]['match_line']
+
+
+def test_search_memos_case_insensitive(tmp_path):
+    """search_memos should be case-insensitive."""
+    proj_dir = tmp_path / "proj"
+    proj_dir.mkdir()
+    (proj_dir / "2026-03-26.md").write_text("# 2026-03-26\n\n## 10:00 | Setup\n- Configured NGINX proxy\n")
+
+    results = search_memos("nginx", memo_base_dir=str(tmp_path))
+    assert len(results) == 1
+    assert 'NGINX' in results[0]['match_line']
+
+
+def test_search_memos_no_match(tmp_path):
+    """search_memos returns empty list when no match found."""
+    proj_dir = tmp_path / "proj"
+    proj_dir.mkdir()
+    (proj_dir / "2026-03-26.md").write_text("# 2026-03-26\n\n## 10:00 | Setup\n- Nothing special\n")
+
+    results = search_memos("nonexistent_keyword_xyz", memo_base_dir=str(tmp_path))
+    assert results == []
+
+
+def test_search_memos_respects_max_results(tmp_path):
+    """search_memos should stop at max_results."""
+    proj_dir = tmp_path / "proj"
+    proj_dir.mkdir()
+    lines = ["# 2026-03-26\n\n## 10:00 | Task\n"]
+    for i in range(20):
+        lines.append(f"- Match item {i}\n")
+    (proj_dir / "2026-03-26.md").write_text("".join(lines))
+
+    results = search_memos("Match", memo_base_dir=str(tmp_path), max_results=5)
+    assert len(results) == 5
+
+
+def test_search_memos_across_projects(tmp_path):
+    """search_memos should find matches across multiple projects."""
+    for name in ["alpha", "beta"]:
+        d = tmp_path / name
+        d.mkdir()
+        (d / "2026-03-26.md").write_text(
+            f"# 2026-03-26\n\n## 10:00 | {name} task\n- Deploy to production\n"
+        )
+
+    results = search_memos("Deploy", memo_base_dir=str(tmp_path))
+    projects = {r['project'] for r in results}
+    assert 'alpha' in projects
+    assert 'beta' in projects
+
+
+def test_search_memos_empty_dir(tmp_path):
+    """search_memos on empty dir returns empty list."""
+    results = search_memos("anything", memo_base_dir=str(tmp_path))
+    assert results == []
+
+
+def test_search_memos_nonexistent_dir():
+    """search_memos with nonexistent dir returns empty list."""
+    results = search_memos("query", memo_base_dir="/tmp/nonexistent_memo_dir_xyz_test")
+    assert results == []
+
+
+def test_search_memos_skips_archive(tmp_path):
+    """search_memos should skip _archive directories."""
+    archive_dir = tmp_path / "_archive"
+    archive_dir.mkdir()
+    (archive_dir / "2025-01-01.md").write_text("# old\n- secret keyword\n")
+
+    results = search_memos("secret", memo_base_dir=str(tmp_path))
+    assert results == []

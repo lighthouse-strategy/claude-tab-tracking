@@ -16,7 +16,6 @@ fi
 
 # Read current description (line 1 only), strip any existing prefix
 CURRENT=$(head -1 "$TASK_FILE")
-PREV_LINE=$(sed -n '2p' "$TASK_FILE")
 DESC="${CURRENT#WIP:}"
 DESC="${DESC#AUTO:}"
 DESC="${DESC#DONE:}"
@@ -24,10 +23,14 @@ DESC="${DESC#MANUAL:}"
 DESC="${DESC#INIT:}"
 DESC=$(echo "$DESC" | tr -d '\n')
 
-# Write DONE status, preserving PREV line
-echo "DONE:${DESC}" > "$TASK_FILE"
-if [[ -n "$PREV_LINE" && "$PREV_LINE" == PREV:* ]]; then
-  echo "$PREV_LINE" >> "$TASK_FILE"
-fi
+# Write DONE status, preserving all PREV lines (up to 3)
+{
+  echo "DONE:${DESC}"
+  while IFS= read -r line; do
+    if [[ "$line" == PREV:* ]]; then
+      echo "$line"
+    fi
+  done < "$TASK_FILE"
+} > "${TASK_FILE}.tmp" && mv "${TASK_FILE}.tmp" "$TASK_FILE"
 
 exit 0

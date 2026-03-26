@@ -33,12 +33,38 @@ if [ -f "$TASK_FILE" ]; then
 fi
 
 # Reset DONE tasks so Python script generates fresh description
+# Shift existing PREVs down and insert current DONE as PREV:1
 if [ -f "$TASK_FILE" ]; then
   CURRENT2=$(head -1 "$TASK_FILE")
   if [[ "$CURRENT2" == DONE:* ]]; then
     DESC="${CURRENT2#DONE:}"
-    echo "WIP:" > "$TASK_FILE"
-    echo "PREV:${DESC}" >> "$TASK_FILE"
+    # Collect existing PREV lines, shift numbers up by 1
+    PREV_LINES=""
+    while IFS= read -r line; do
+      if [[ "$line" == PREV:* ]]; then
+        REST="${line#PREV:}"
+        # New format: PREV:N:task
+        if [[ "$REST" =~ ^([0-9]+):(.*)$ ]]; then
+          N="${BASH_REMATCH[1]}"
+          TASK="${BASH_REMATCH[2]}"
+          NEW_N=$((N + 1))
+          if [ "$NEW_N" -le 3 ]; then
+            PREV_LINES="${PREV_LINES}PREV:${NEW_N}:${TASK}
+"
+          fi
+        else
+          # Old format: PREV:task — treat as PREV:1, shift to PREV:2
+          PREV_LINES="${PREV_LINES}PREV:2:${REST}
+"
+        fi
+      fi
+    done < "$TASK_FILE"
+    # Write new file: WIP + PREV:1 (current done) + shifted PREVs
+    {
+      echo "WIP:"
+      echo "PREV:1:${DESC}"
+      printf '%s' "$PREV_LINES"
+    } > "$TASK_FILE"
   fi
 fi
 
