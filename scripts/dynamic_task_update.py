@@ -107,9 +107,26 @@ def load_memo_config(config_path=None):
 
 
 def title_similarity(a: str, b: str) -> float:
-    """Word-overlap ratio between two titles (Jaccard on word tokens)."""
-    words_a = set(re.findall(r'\w+', a.lower()))
-    words_b = set(re.findall(r'\w+', b.lower()))
+    """Word-overlap ratio between two titles (Jaccard on word tokens).
+
+    Splits on whitespace/punctuation AND splits CJK characters individually
+    so that mixed ASCII+Chinese strings tokenize correctly.
+    """
+    def _tokenize(s):
+        tokens = set()
+        for chunk in re.findall(r'\w+', s.lower()):
+            # Split individual CJK characters out of the chunk
+            has_cjk = bool(re.search(r'[\u4e00-\u9fff\u3400-\u4dbf]', chunk))
+            if has_cjk:
+                # Emit each CJK character separately and any ASCII sub-words
+                for ch in re.findall(r'[\u4e00-\u9fff\u3400-\u4dbf]|[a-z0-9]+', chunk):
+                    tokens.add(ch)
+            else:
+                tokens.add(chunk)
+        return tokens
+
+    words_a = _tokenize(a)
+    words_b = _tokenize(b)
     if not words_a or not words_b:
         return 0.0
     return len(words_a & words_b) / len(words_a | words_b)
@@ -546,36 +563,101 @@ def resolve_project_name(cwd):
     return sanitize_project_name(os.path.basename(cwd))
 
 
-def write_memo(memo_content, task_desc, project_name, memo_base_dir=None):
+def _parse_last_entry(memo_file):
+    """Parse the last entry from a memo file. Returns (header_line_idx, time_str, title, bullets, all_lines) or None."""
+    if not os.path.exists(memo_file):
+        return None
+    with open(memo_file, 'r', encoding='utf-8') as f:
+        lines = f.readlines()
+    last_header_idx = None
+    for i in range(len(lines) - 1, -1, -1):
+        if lines[i].strip().startswith('## '):
+            last_header_idx = i
+            break
+    if last_header_idx is None:
+        return None
+    header = lines[last_header_idx].strip()
+    m = re.match(r'^##\s+(\d{1,2}:\d{2})\s*\|\s*(.*)$', header)
+    if not m:
+        return None
+    time_str = m.group(1)
+    title = m.group(2).strip()
+    bullets = []
+    for line in lines[last_header_idx + 1:]:
+        stripped = line.strip()
+        if stripped.startswith('- '):
+            bullets.append(stripped)
+    return last_header_idx, time_str, title, bullets, lines
+
+
+def write_memo(memo_content, task_desc, project_name, memo_base_dir=None, merge_config=None):
     """Append a memo entry to the project's daily memo file.
 
-    Uses fcntl file locking (Unix) to prevent interleaved writes when
-    multiple processes (API sync + CLI background) write simultaneously.
+    If the last entry is similar and recent, merges instead of appending.
+    Uses fcntl file locking (Unix) to prevent interleaved writes.
     """
     if not memo_content:
         return
     if memo_base_dir is None:
         memo_base_dir = MEMO_BASE_DIR
+    if merge_config is None:
+        merge_config = DEFAULT_CONFIG
+
+    merge_window = merge_config.get('memo_merge_window', 300)
+    merge_threshold = merge_config.get('memo_merge_threshold', 0.6)
+
     today = datetime.now().strftime('%Y-%m-%d')
     time_str = datetime.now().strftime('%H:%M')
     project_dir = os.path.join(memo_base_dir, project_name)
     os.makedirs(project_dir, exist_ok=True)
     memo_file = os.path.join(project_dir, f'{today}.md')
 
-    items = [item.strip() for item in memo_content.split('|') if item.strip()]
-    entry_lines = [f'\n## {time_str} | {task_desc}']
-    for item in items:
-        entry_lines.append(f'- {item}')
-    entry_lines.append('')
+    new_items = [item.strip() for item in memo_content.split('|') if item.strip()]
+    new_bullets = [f'- {item}' for item in new_items]
 
     def _do_write():
-        if not os.path.exists(memo_file):
-            with open(memo_file, 'w', encoding='utf-8') as f:
-                f.write(f'# {today}\n')
-                f.write('\n'.join(entry_lines))
-        else:
-            with open(memo_file, 'a', encoding='utf-8') as f:
-                f.write('\n'.join(entry_lines))
+        merged = False
+        if merge_window > 0:
+            parsed = _parse_last_entry(memo_file)
+            if parsed is not None:
+                header_idx, last_time, last_title, last_bullets, all_lines = parsed
+                # Check time window
+                try:
+                    now_minutes = int(time_str.split(':')[0]) * 60 + int(time_str.split(':')[1])
+                    last_minutes = int(last_time.split(':')[0]) * 60 + int(last_time.split(':')[1])
+                    delta_seconds = abs(now_minutes - last_minutes) * 60
+                except (ValueError, IndexError):
+                    delta_seconds = 9999
+                # Check similarity
+                if delta_seconds <= merge_window and title_similarity(last_title, task_desc) >= merge_threshold:
+                    # Merge: replace last entry with combined content
+                    existing_bullet_texts = set(last_bullets)
+                    merged_bullets = list(last_bullets)
+                    for b in new_bullets:
+                        if b not in existing_bullet_texts:
+                            merged_bullets.append(b)
+                    # Rebuild file: everything before last entry + merged entry
+                    new_header = f'## {time_str} | {task_desc}\n'
+                    with open(memo_file, 'w', encoding='utf-8') as f:
+                        for line in all_lines[:header_idx]:
+                            f.write(line)
+                        f.write(f'\n{new_header}')
+                        for b in merged_bullets:
+                            f.write(f'{b}\n')
+                    merged = True
+
+        if not merged:
+            entry_lines = [f'\n## {time_str} | {task_desc}']
+            for b in new_bullets:
+                entry_lines.append(b)
+            entry_lines.append('')
+            if not os.path.exists(memo_file):
+                with open(memo_file, 'w', encoding='utf-8') as f:
+                    f.write(f'# {today}\n')
+                    f.write('\n'.join(entry_lines))
+            else:
+                with open(memo_file, 'a', encoding='utf-8') as f:
+                    f.write('\n'.join(entry_lines))
 
     if HAS_FCNTL:
         lock_path = memo_file + '.lock'

@@ -1028,3 +1028,66 @@ def test_load_config_merge_disabled(tmp_path):
     config_file.write_text('memo_merge_window: 0\n')
     config = load_memo_config(str(config_file))
     assert config['memo_merge_window'] == 0
+
+
+# ---------------------------------------------------------------------------
+# Tests for memo merge (write_memo deduplication)
+# ---------------------------------------------------------------------------
+
+
+def test_write_memo_merges_similar_within_window(tmp_path):
+    """Two similar memos within merge window should be merged."""
+    memo_dir = tmp_path / "memos"
+    write_memo('【决策】Switch to JWT', 'Phase 3 Preset系统开发已完成', 'proj', str(memo_dir))
+    write_memo('【数据】Affects 3 endpoints', 'Phase 3 Preset系统开发已完成并测试通过', 'proj', str(memo_dir))
+
+    today = datetime.now().strftime('%Y-%m-%d')
+    content = (memo_dir / 'proj' / f'{today}.md').read_text()
+    # Should have only ONE ## header (merged), not two
+    headers = [l for l in content.splitlines() if l.startswith('## ')]
+    assert len(headers) == 1
+    # Merged entry should have both bullet points
+    assert '【决策】Switch to JWT' in content
+    assert '【数据】Affects 3 endpoints' in content
+    # Title should be the newer one
+    assert 'Phase 3 Preset系统开发已完成并测试通过' in headers[0]
+
+
+def test_write_memo_no_merge_different_titles(tmp_path):
+    """Memos with different titles should NOT be merged."""
+    memo_dir = tmp_path / "memos"
+    write_memo('【决策】改用 JWT', '修复登录页验证', 'proj', str(memo_dir))
+    write_memo('【数据】新增 10 个 API', '开发支付模块', 'proj', str(memo_dir))
+
+    today = datetime.now().strftime('%Y-%m-%d')
+    content = (memo_dir / 'proj' / f'{today}.md').read_text()
+    headers = [l for l in content.splitlines() if l.startswith('## ')]
+    assert len(headers) == 2
+
+
+def test_write_memo_no_merge_when_disabled(tmp_path):
+    """When memo_merge_window=0, merging should be disabled."""
+    memo_dir = tmp_path / "memos"
+    config = dict(DEFAULT_CONFIG)
+    config['memo_merge_window'] = 0
+    write_memo('【决策】First', 'Same task name', 'proj', str(memo_dir), merge_config=config)
+    write_memo('【数据】Second', 'Same task name', 'proj', str(memo_dir), merge_config=config)
+
+    today = datetime.now().strftime('%Y-%m-%d')
+    content = (memo_dir / 'proj' / f'{today}.md').read_text()
+    headers = [l for l in content.splitlines() if l.startswith('## ')]
+    assert len(headers) == 2
+
+
+def test_write_memo_deduplicates_bullets(tmp_path):
+    """Merged entry should not have duplicate bullet points."""
+    memo_dir = tmp_path / "memos"
+    write_memo('【决策】改用 JWT | 【结论】测试通过', 'Same task', 'proj', str(memo_dir))
+    write_memo('【决策】改用 JWT | 【数据】3 endpoints', 'Same task', 'proj', str(memo_dir))
+
+    today = datetime.now().strftime('%Y-%m-%d')
+    content = (memo_dir / 'proj' / f'{today}.md').read_text()
+    # 【决策】改用 JWT should appear only once
+    assert content.count('【决策】改用 JWT') == 1
+    assert '【结论】测试通过' in content
+    assert '【数据】3 endpoints' in content
