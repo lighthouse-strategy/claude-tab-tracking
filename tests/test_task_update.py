@@ -950,3 +950,81 @@ def test_search_memos_skips_archive(tmp_path):
 
     results = search_memos("secret", memo_base_dir=str(tmp_path))
     assert results == []
+
+
+# ---------------------------------------------------------------------------
+# Tests for title_similarity
+# ---------------------------------------------------------------------------
+
+from dynamic_task_update import title_similarity
+
+
+def test_similarity_identical():
+    assert title_similarity("修复登录页验证", "修复登录页验证") == 1.0
+
+
+def test_similarity_completely_different():
+    assert title_similarity("Fix auth bug", "Deploy to production") < 0.2
+
+
+def test_similarity_partial_overlap():
+    score = title_similarity(
+        "Phase 3 Preset 系统开发 已完成 并测试通过",
+        "Phase 3 Preset 系统开发 已完成"
+    )
+    assert score > 0.6
+
+
+def test_similarity_empty_strings():
+    assert title_similarity("", "") == 0.0
+    assert title_similarity("hello", "") == 0.0
+    assert title_similarity("", "world") == 0.0
+
+
+def test_similarity_case_insensitive():
+    assert title_similarity("Fix Auth Bug", "fix auth bug") == 1.0
+
+
+# ---------------------------------------------------------------------------
+# Tests for new config keys (token budget)
+# ---------------------------------------------------------------------------
+
+
+def test_load_config_token_budget_defaults(tmp_path):
+    """Default config should have token budget keys."""
+    config = load_memo_config(str(tmp_path / 'nonexistent.yaml'))
+    assert config['recall_token_budget'] == 8000
+    assert config['memo_merge_window'] == 300
+    assert config['memo_merge_threshold'] == 0.6
+
+
+def test_load_config_token_budget_custom(tmp_path):
+    """load_memo_config should parse new token budget keys."""
+    config_file = tmp_path / 'config.yaml'
+    config_file.write_text(
+        'recall_token_budget: 4000\n'
+        'memo_merge_window: 600\n'
+        'memo_merge_threshold: 0.8\n'
+    )
+    config = load_memo_config(str(config_file))
+    assert config['recall_token_budget'] == 4000
+    assert config['memo_merge_window'] == 600
+    assert config['memo_merge_threshold'] == 0.8
+
+
+def test_load_config_token_budget_partial(tmp_path):
+    """Missing new keys should fall back to defaults."""
+    config_file = tmp_path / 'config.yaml'
+    config_file.write_text('recall_token_budget: 5000\n')
+    config = load_memo_config(str(config_file))
+    assert config['recall_token_budget'] == 5000
+    assert config['memo_merge_window'] == 300  # default
+    assert config['memo_merge_threshold'] == 0.6  # default
+
+
+def test_load_config_merge_disabled(tmp_path):
+    """memo_merge_window: 0 should be parsed as 0 (disabled)."""
+    config_file = tmp_path / 'config.yaml'
+    config_file.write_text('memo_merge_window: 0\n')
+    config = load_memo_config(str(config_file))
+    assert config['memo_merge_window'] == 0

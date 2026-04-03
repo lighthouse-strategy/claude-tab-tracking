@@ -45,6 +45,9 @@ DEFAULT_CONFIG = {
     'min_turns': 3,
     'archive_days': 90,
     'ollama_timeout': 15,
+    'recall_token_budget': 8000,
+    'memo_merge_window': 300,
+    'memo_merge_threshold': 0.6,
 }
 
 
@@ -86,12 +89,30 @@ def load_memo_config(config_path=None):
                     config['archive_days'] = int(val)
                 elif key == 'ollama_timeout' and val.isdigit():
                     config['ollama_timeout'] = int(val)
+                elif key == 'recall_token_budget' and val.isdigit():
+                    config['recall_token_budget'] = int(val)
+                elif key == 'memo_merge_window' and val.isdigit():
+                    config['memo_merge_window'] = int(val)
+                elif key == 'memo_merge_threshold':
+                    try:
+                        config['memo_merge_threshold'] = float(val)
+                    except ValueError:
+                        pass
         if tags:
             config['tags'] = tags
         config['tags_str'] = ''.join(f'【{t}】' for t in config['tags'])
     except Exception:
         pass
     return config
+
+
+def title_similarity(a: str, b: str) -> float:
+    """Word-overlap ratio between two titles (Jaccard on word tokens)."""
+    words_a = set(re.findall(r'\w+', a.lower()))
+    words_b = set(re.findall(r'\w+', b.lower()))
+    if not words_a or not words_b:
+        return 0.0
+    return len(words_a & words_b) / len(words_a | words_b)
 
 
 # ---------------------------------------------------------------------------
