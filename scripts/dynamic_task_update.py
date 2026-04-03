@@ -132,6 +132,26 @@ def title_similarity(a: str, b: str) -> float:
     return len(words_a & words_b) / len(words_a | words_b)
 
 
+def estimate_tokens(text: str) -> int:
+    """Rough token estimate for mixed Chinese/English text."""
+    if not text:
+        return 0
+    return int(len(text) / 1.5)
+
+
+def summarize_memo_content(content: str) -> str:
+    """Extract headers and 【结论】lines from memo content for summary mode."""
+    if not content:
+        return ""
+    lines = content.splitlines()
+    summary_lines = []
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith('# ') or stripped.startswith('## ') or '【结论】' in stripped:
+            summary_lines.append(line)
+    return '\n'.join(summary_lines)
+
+
 # ---------------------------------------------------------------------------
 # Shared prompt templates
 # ---------------------------------------------------------------------------

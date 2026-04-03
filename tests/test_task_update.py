@@ -833,6 +833,69 @@ def test_shift_prev_lines_empty(tmp_path):
     assert result == ["PREV:1:Done task"]
 
 
+# ---------------------------------------------------------------------------
+# Tests for estimate_tokens
+# ---------------------------------------------------------------------------
+
+from dynamic_task_update import estimate_tokens
+
+
+def test_estimate_tokens_english():
+    text = "Hello world this is a test"
+    tokens = estimate_tokens(text)
+    assert 10 < tokens < 30
+
+
+def test_estimate_tokens_chinese():
+    text = "修复登录页验证并部署到生产环境"
+    tokens = estimate_tokens(text)
+    assert 5 < tokens < 30
+
+
+def test_estimate_tokens_empty():
+    assert estimate_tokens("") == 0
+
+
+def test_estimate_tokens_large():
+    """A 15KB text should estimate around 10,000 tokens."""
+    text = "测试内容 " * 3000  # ~15KB
+    tokens = estimate_tokens(text)
+    assert 8000 < tokens < 12000
+
+
+# ---------------------------------------------------------------------------
+# Tests for summarize_memo_content
+# ---------------------------------------------------------------------------
+
+from dynamic_task_update import summarize_memo_content
+
+
+def test_summarize_keeps_headers_and_conclusions():
+    content = """# 2026-03-23
+
+## 08:00 | Fix auth bug
+- 【决策】Switch to JWT
+- 【数据】Affects 3 endpoints
+- 【结论】Root cause was cache
+
+## 09:00 | Deploy to prod
+- 【决策】Blue-green deploy
+- 【结论】Successful rollout
+"""
+    summary = summarize_memo_content(content)
+    assert '## 08:00 | Fix auth bug' in summary
+    assert '## 09:00 | Deploy to prod' in summary
+    assert '【结论】Root cause was cache' in summary
+    assert '【结论】Successful rollout' in summary
+    # 【决策】and 【数据】 lines should be excluded in summary
+    assert '【决策】Switch to JWT' not in summary
+    assert '【数据】Affects 3 endpoints' not in summary
+
+
+def test_summarize_empty():
+    assert summarize_memo_content("") == ""
+
+
 def test_shift_prev_lines_old_format(tmp_path):
     """shift_prev_lines handles old PREV:task format."""
     f = tmp_path / "task.txt"
