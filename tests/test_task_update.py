@@ -1154,3 +1154,47 @@ def test_write_memo_deduplicates_bullets(tmp_path):
     assert content.count('【决策】改用 JWT') == 1
     assert '【结论】测试通过' in content
     assert '【数据】3 endpoints' in content
+
+
+# ---------------------------------------------------------------------------
+# Integration test: memo lifecycle with merge
+# ---------------------------------------------------------------------------
+
+
+def test_memo_lifecycle_merge_and_summarize(tmp_path):
+    """End-to-end: write multiple similar memos, verify merge, then summarize."""
+    memo_dir = tmp_path / "memos"
+
+    # Write 3 similar memos (should merge into 1)
+    write_memo('【决策】Use Redis', 'Optimize caching layer', 'proj', str(memo_dir))
+    write_memo('【数据】p99 reduced 40%', 'Optimize caching layer performance', 'proj', str(memo_dir))
+    write_memo('【结论】Cache hit rate 95%', 'Optimize caching layer performance tuning', 'proj', str(memo_dir))
+
+    # Write 1 different memo (should NOT merge)
+    write_memo('【决策】Add rate limiter', 'Implement API rate limiting', 'proj', str(memo_dir))
+
+    today = datetime.now().strftime('%Y-%m-%d')
+    content = (memo_dir / 'proj' / f'{today}.md').read_text()
+
+    # Should have exactly 2 entries
+    headers = [l for l in content.splitlines() if l.startswith('## ')]
+    assert len(headers) == 2
+
+    # First entry (merged) should have all 3 bullets
+    assert '【决策】Use Redis' in content
+    assert '【数据】p99 reduced 40%' in content
+    assert '【结论】Cache hit rate 95%' in content
+
+    # Second entry should be separate
+    assert '【决策】Add rate limiter' in content
+
+    # Summarize should only keep headers + conclusions
+    summary = summarize_memo_content(content)
+    assert '## ' in summary
+    assert '【结论】Cache hit rate 95%' in summary
+    assert '【决策】Use Redis' not in summary  # decisions excluded from summary
+
+    # Token estimate should be reasonable
+    full_tokens = estimate_tokens(content)
+    summary_tokens = estimate_tokens(summary)
+    assert summary_tokens < full_tokens
