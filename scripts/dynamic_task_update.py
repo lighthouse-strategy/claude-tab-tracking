@@ -834,7 +834,7 @@ def main():
     if memo_content:
         cwd = os.environ.get('PWD', os.getcwd())
         project = resolve_project_name(cwd)
-        write_memo(memo_content, task_desc, project)
+        write_memo(memo_content, task_desc, project, merge_config=memo_config)
 
 
 if __name__ == '__main__':

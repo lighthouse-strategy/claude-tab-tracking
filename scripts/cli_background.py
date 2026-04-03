@@ -13,36 +13,12 @@ import sys
 from datetime import datetime
 
 from claude_cli_common import build_claude_cli_cmd
-from dynamic_task_update import parse_llm_response, read_prev_lines
+from dynamic_task_update import parse_llm_response, read_prev_lines, write_memo, load_memo_config
 
 logging.basicConfig(level=logging.WARNING, format='%(levelname)s: %(message)s')
 
 TIMEOUT = 60
 
-
-def write_memo_file(memo_content, task_desc, project_name, memo_base_dir):
-    """Append a memo entry to the project's daily memo file."""
-    if not memo_content:
-        return
-    today = datetime.now().strftime('%Y-%m-%d')
-    time_str = datetime.now().strftime('%H:%M')
-    project_dir = os.path.join(memo_base_dir, project_name)
-    os.makedirs(project_dir, exist_ok=True)
-    memo_file = os.path.join(project_dir, f'{today}.md')
-
-    items = [item.strip() for item in memo_content.split('|') if item.strip()]
-    entry_lines = [f'\n## {time_str} | {task_desc}']
-    for item in items:
-        entry_lines.append(f'- {item}')
-    entry_lines.append('')
-
-    if not os.path.exists(memo_file):
-        with open(memo_file, 'w', encoding='utf-8') as f:
-            f.write(f'# {today}\n')
-            f.write('\n'.join(entry_lines))
-    else:
-        with open(memo_file, 'a', encoding='utf-8') as f:
-            f.write('\n'.join(entry_lines))
 
 
 def main():
@@ -112,7 +88,7 @@ def main():
 
     # Write memo file if memo content present and memo args provided
     if memo and memo_base_dir and project_name:
-        write_memo_file(memo, task, project_name, memo_base_dir)
+        write_memo(memo, task, project_name, memo_base_dir, merge_config=load_memo_config())
 
 
 if __name__ == '__main__':
