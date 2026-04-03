@@ -73,6 +73,30 @@ export CLAUDE_TAB_BACKEND=auto
 
 指定某个后端时，如果该后端失败则不会回退。设为 `auto`（或不设置）时，按优先级依次尝试所有后端。
 
+### Token 预算
+
+控制 `/recall` 注入的上下文量，以及备忘录条目的去重合并。
+
+在 `~/.claude/memos/config.yaml` 中添加：
+
+```yaml
+# 每次 /recall 加载的最大 token 数（默认: 8000，0 = 不限制）
+recall_token_budget: 8000
+
+# 合并相似备忘录条目的时间窗口，单位秒（默认: 300，0 = 禁用）
+memo_merge_window: 300
+
+# 标题相似度合并阈值（0.0-1.0，默认: 0.6）
+memo_merge_threshold: 0.6
+```
+
+**Recall 加载模式：**
+- **完整模式**：文件在预算内 → 原样加载
+- **摘要模式**：文件超出预算 → 仅加载标题 + 结论
+- **截断模式**：摘要仍超预算 → 从最新条目向前加载至预算用完
+
+单次覆盖：`/recall --budget 4000` 或 `/recall --full`（不限制）。
+
 ## 安装
 
 需要 [jq](https://jqlang.github.io/jq/)：

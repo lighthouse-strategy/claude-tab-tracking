@@ -76,6 +76,30 @@ export CLAUDE_TAB_BACKEND=auto
 
 When set to a specific backend, no fallback is attempted — if that backend fails, the task description is not updated. When set to `auto` (or unset), all backends are tried in order.
 
+### Token Budget
+
+Control how much context `/recall` injects and how memo entries are deduplicated.
+
+Add to `~/.claude/memos/config.yaml`:
+
+```yaml
+# Max tokens loaded per /recall invocation (default: 8000, 0 = unlimited)
+recall_token_budget: 8000
+
+# Merge similar memo entries within this window in seconds (default: 300, 0 = disabled)
+memo_merge_window: 300
+
+# Title similarity threshold for merging (0.0-1.0, default: 0.6)
+memo_merge_threshold: 0.6
+```
+
+**Recall loading modes:**
+- **Full**: file fits within budget → loaded as-is
+- **Summary**: file exceeds budget → only headers + conclusions loaded
+- **Truncated**: summary exceeds budget → most recent entries loaded up to budget
+
+Override per-invocation: `/recall --budget 4000` or `/recall --full` (no limit).
+
 ## Install
 
 Requires [jq](https://jqlang.github.io/jq/):
